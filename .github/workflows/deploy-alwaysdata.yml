@@ -62,17 +62,31 @@ jobs:
             ./ "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "chmod +x '$ALWAYSDATA_TARGET/deploy/alwaysdata-start.sh'"
 
+      - name: Verify normalized metadata source deployed
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+        run: |
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"return 'Glénat';\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
+
       - name: Restart BD Desk backend
         if: env.ALWAYSDATA_PASSWORD != ''
         env:
           SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
         run: |
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "pkill -TERM -f '/home/tatoune/www/bd-desk/[s]rc/server.js' || true"
-          sleep 3
+          sleep 4
 
-      - name: Preview smoke check
+      - name: Preview health check
         if: env.ALWAYSDATA_PASSWORD != ''
         run: |
           curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
-          echo "Preview reachable: $PREVIEW_URL"
+
+      - name: Verify live metadata normalization
+        if: env.ALWAYSDATA_PASSWORD != ''
+        run: |
+          DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
+          node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
+          echo "Live metadata normalization verified."
