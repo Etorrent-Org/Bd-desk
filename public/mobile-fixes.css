@@ -1,11 +1,11 @@
 @media (max-width:720px){
   .topbar{gap:8px;padding-left:10px;padding-right:10px}
   .mobile-menu{width:34px;min-width:34px;padding:0}
-  .search{min-width:0}
-  .search input{min-width:0;font-size:15px}
-  .top-actions{margin-left:0}
+  .search{min-width:0;max-width:none;flex:1 1 auto}
+  .search input{min-width:0;font-size:15px;text-overflow:ellipsis}
+  .top-actions{margin-left:0;flex:0 0 auto}
 
-  .content{padding:18px 14px calc(118px + env(safe-area-inset-bottom))}
+  .content{padding:18px 14px calc(150px + env(safe-area-inset-bottom))}
   .page-head{align-items:flex-start;gap:12px}
   .page-head>div{min-width:0}
   .page-head p{line-height:1.35}
@@ -19,6 +19,7 @@
   .kpi .delta{font-size:11px}
 
   .section{margin-top:22px}
+  .section:last-child{margin-bottom:24px}
   .section-title{margin-bottom:12px}
   .covers{gap:12px;margin-right:-14px;padding-right:14px;padding-bottom:7px;scroll-padding-left:14px;scrollbar-width:none}
   .covers::-webkit-scrollbar{display:none}
@@ -26,7 +27,7 @@
   .album-card h3{font-size:12px;margin-top:9px}
   .album-card p{font-size:12px}
 
-  .resume-grid{gap:10px}
+  .resume-grid{gap:10px;padding-bottom:8px}
   .resume{grid-template-columns:54px minmax(0,1fr);align-items:center;gap:12px;padding:12px}
   .resume img{width:54px;height:74px}
   .resume>.placeholder{width:54px;height:74px;display:grid;place-items:center;overflow:hidden;border-radius:6px;padding:6px;text-align:center;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 18%,var(--panel)),var(--panel));font:800 11px/1.15 var(--display);color:var(--text)}
