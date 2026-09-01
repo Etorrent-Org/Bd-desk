@@ -43,14 +43,18 @@
         const title=choose(candidates,'title');
         const publisher=choose(candidates,'publisher');
         const series=choose(candidates,'series',['open-library','bnf','google-books']);
+        const seriesNumber=choose(candidates,'seriesNumber',['open-library','google-books','bnf']);
         const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
-        discoveredMeta={title,publisher,series,coverUrl,source:'isbn-discover'};
-        const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries');
+        discoveredMeta={title,publisher,series,seriesNumber,coverUrl,source:'isbn-discover'};
+        const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries'),numberInput=document.getElementById('addNumber');
         if(title&&!titleInput.value)titleInput.value=title;
         if(publisher&&!publisherInput.value)publisherInput.value=publisher;
         if(series&&!seriesInput.value)seriesInput.value=Array.isArray(series)?series[0]:series;
+        if(seriesNumber&&!numberInput.value)numberInput.value=seriesNumber;
         const sources=[...new Set(candidates.map(c=>c.source).filter(Boolean))].map(s=>s==='google-books'?'Google Books':s==='open-library'?'Open Library':s==='bnf'?'BnF':s);
-        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier si la source ne les fournit pas.`;
+        status.textContent=series&&seriesNumber
+          ? `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et tome détectés — vérifiez avant ajout.`
+          : `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier si la source ne les fournit pas.`;
       }catch(e){if(token===lookupToken){status.textContent=e.message||'Recherche de métadonnées impossible';discoveredMeta=null;}}
     };
     isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(lookup,220)});
