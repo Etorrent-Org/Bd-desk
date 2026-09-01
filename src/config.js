@@ -5,7 +5,9 @@ export function configFromEnv(env = process.env) {
   return {
     environment: env.NODE_ENV || 'development',
     port: Number(env.PORT || 3096),
-    host: env.HOST || '0.0.0.0',
+    // alwaysdata exposes the upstream address through IP/PORT; other hosts
+    // commonly use HOST/PORT. Support both without changing local behavior.
+    host: env.HOST || env.IP || '0.0.0.0',
     dbPath: path.resolve(env.BD_DESK_DB || './data/bd-desk.db'),
     licenseSecret: env.BD_DESK_LICENSE_SECRET || 'dev-only-change-me',
     googleBooksApiKey: env.GOOGLE_BOOKS_API_KEY || '',
