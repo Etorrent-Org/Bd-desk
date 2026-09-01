@@ -6,18 +6,23 @@ Date : 2026-09-01
 
 | Axe | Résultat |
 |---|---:|
-| Tests automatisés | 36 / 36 OK |
-| Couverture lignes cœur serveur | 98,96 % |
-| Couverture fonctions cœur serveur | 95,33 % |
-| Couverture branches cœur serveur | 76,52 % |
-| Import BDGest réel | 479 / 479 |
-| Contrôles de champs BDGest | 13 891 / 13 891 |
-| Fidélité import | 100 % |
-| Rejets import | 0 |
+| Tests automatisés | **36 / 36 OK** |
+| Couverture lignes cœur serveur | **98,69 %** |
+| Couverture fonctions cœur serveur | **91,95 %** |
+| Couverture branches cœur serveur | **70,61 %** |
+| Import BDGest réel | **479 / 479** |
+| Contrôles de champs BDGest | **13 891 / 13 891** |
+| Fidélité import | **100 %** |
+| Rejets import | **0** |
+| Build Docker | **OK** |
+| Smoke test `/api/health` | **OK** |
+| Open Library live | **HTTP 200 · 1 résultat** |
+| BnF SRU live | **HTTP 200 · 1 résultat** |
+| Google Books live CI | **HTTP 429 · quota anonyme, appel testé** |
 
 ## QA navigateur
 
-Un navigateur Chromium a été piloté dans l'environnement de test avec le frontend réel, le serveur réel et une base temporaire alimentée depuis l'export BDGest de référence. Les accès réseau du navigateur sont administrativement bloqués dans l'environnement ; les requêtes vers le serveur local ont donc été relayées par le harnais QA. Les couvertures ont été remplacées uniquement dans les captures QA par des visuels synthétiques afin de contrôler la grille sans publier ni dépendre des images distantes.
+Un navigateur Chromium a été piloté avec le frontend réel, le serveur réel et une base temporaire alimentée depuis l'export BDGest de référence. Les couvertures ont été remplacées uniquement dans les captures QA par des visuels synthétiques afin de contrôler la grille sans publier ni dépendre des images distantes.
 
 Contrôles réalisés et validés :
 
@@ -39,7 +44,7 @@ Contrôles réalisés et validés :
 - apparition de la gestion des clés API ;
 - statistiques Premium avancées.
 
-Le chemin caméra matériel (`getUserMedia` + `BarcodeDetector`) devra être contrôlé sur un vrai iPad en HTTPS, car l'environnement navigateur actuel ne fournit pas un périphérique caméra réel.
+Le chemin caméra matériel (`getUserMedia` + `BarcodeDetector`) reste à contrôler sur un vrai iPad en HTTPS, car le navigateur QA n'expose pas de caméra matérielle.
 
 ## Import BDGest
 
@@ -56,30 +61,54 @@ Résultat métier :
 
 L'ISBN n'est donc **pas** une contrainte d'unicité : plusieurs exemplaires/variantes peuvent légitimement partager un ISBN.
 
-## Métadonnées externes
+## Métadonnées externes — validation live
 
-Les adaptateurs, URLs, parsers, fusions, priorités et scénarios de panne sont couverts par les tests locaux pour :
+Le workflow GitHub **Live QA** a été exécuté sur un runner Internet réel.
 
-- BnF Catalogue général / SRU ;
-- Google Books ;
-- Open Library.
+Résultat :
 
-La documentation BnF 2026 confirme que l'API SRU est publique, HTTP GET/POST, SRU 1.2, avec recherche ISBN et sortie Dublin Core/XML.
+- **Open Library Search API** : HTTP 200, 1 enregistrement, parser OK ;
+- **BnF SRU** : HTTP 200, 1 enregistrement, parser OK ;
+- **Google Books** : la requête est bien émise mais le runner GitHub partagé reçoit HTTP 429 sur le quota anonyme. Le code gère ce cas en mode dégradé ; une clé `GOOGLE_BOOKS_API_KEY` permet de passer en mode strict/production.
 
-### Limitation d'environnement
+La validation ne masque donc pas la limite Google : ce fournisseur est **testé mais pas validé en succès HTTP 200 sans clé depuis GitHub Actions**.
 
-Le runtime de test n'a pas de résolution DNS sortante utilisable pour exécuter les trois appels live. Un script `npm run test:external` et un job GitHub Actions hebdomadaire sont prêts. Cette partie ne sera considérée **live validée** qu'après une exécution sur un runner disposant d'Internet.
+## Docker — validation live
 
-## GitHub
+Le workflow Live QA a construit l'image `bd-desk:qa`, lancé le conteneur avec les secrets de test, puis interrogé le vrai serveur :
 
-Repository actif : `Etorrent-Org/Bd-desk`, branche `main`, repository public.
+```json
+{"ok":true,"service":"bd-desk","version":"1.0.0","albums":0}
+```
 
-Le transfert vers l'organisation a levé le blocage d'écriture du connecteur GitHub. La publication du code est autorisée.
+Build et démarrage Docker : **validés**.
 
-## Docker
+## GitHub / CI
 
-`Dockerfile`, `docker-compose.yml`, healthcheck et configuration production sont présents. Le build Docker n'a pas pu être exécuté dans l'environnement courant car aucun daemon Docker n'y est disponible.
+Repository actif : `Etorrent-Org/Bd-desk`, branche `main`, public.
+
+- publication du code : OK ;
+- CI Node.js 22 : OK ;
+- CI Node.js 24 : OK ;
+- preview smoke : OK ;
+- Live QA : OK ;
+- workflow alwaysdata : installé et prêt.
+
+## Preview iPad / alwaysdata
+
+URL cible : `https://tatoune.alwaysdata.net/`.
+
+Le code de déploiement est prêt. L'activation dépend encore de deux réglages de compte qui ne peuvent pas être effectués par le connecteur GitHub :
+
+1. ajouter dans GitHub Actions le secret `ALWAYSDATA_PASSWORD` sans l'exposer dans le chat ;
+2. configurer une fois le site alwaysdata en Node.js 24 avec la commande documentée dans `docs/DEPLOYMENT-ALWAYSDATA.md`.
+
+Après cela, chaque évolution UI ciblée est synchronisée automatiquement pour contrôle sur iPad.
+
+## Licence Premium — limite à connaître
+
+La vérification Free/Premium est réelle côté serveur et couverte par les tests. Cependant le repository étant public, un utilisateur qui contrôle une instance self-hosted peut modifier ce code. Une commercialisation robuste doit donc déplacer l'entitlement Premium critique vers un backend/service contrôlé par l'éditeur ou distribuer les modules commerciaux hors du code public.
 
 ## Conclusion QA
 
-Le cœur applicatif, l'import réel, les contrôles d'accès Premium et les parcours UI critiques dépassent l'objectif de validation de 90 %. Les éléments non fermés ne sont pas des échecs de code identifiés : ils dépendent de services indisponibles dans l'environnement courant (écriture GitHub, réseau sortant live, caméra iPad, daemon Docker).
+Le cœur applicatif, les parcours UI critiques, l'import réel, les contrôles Premium, API/webhooks/MCP, la CI et Docker dépassent l'objectif de validation de 90 % sur les critères applicatifs suivis. Deux éléments restent dépendants d'un environnement utilisateur : la caméra d'un vrai iPad et l'activation du compte alwaysdata. Google Books nécessite en pratique une clé API pour rendre son test live CI strict et stable.
