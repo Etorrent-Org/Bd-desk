@@ -1,5 +1,5 @@
 (()=>{
-  window.__BD_EAN_SCANNER_VERSION='2026-09-01.3';
+  window.__BD_EAN_SCANNER_VERSION='2026-09-01.4';
 
   const L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
   const G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
@@ -145,9 +145,12 @@
     </style><div class="bdscan-top"><strong>Scanner ISBN / EAN</strong><button class="bdscan-close" aria-label="Fermer">×</button></div><div class="bdscan-video-wrap"><video class="bdscan-video" autoplay muted playsinline></video><div class="bdscan-shade"></div><div class="bdscan-frame"></div><div class="bdscan-line"></div><div class="bdscan-hint">Cadrez le code-barres au centre</div></div><div class="bdscan-fallback" hidden><h2>Caméra non disponible</h2><span class="bdscan-reason"></span><button data-retry>Réessayer la caméra</button><label class="bdscan-photo-label">Prendre une photo du code-barres<input data-photo type="file" accept="image/*" capture="environment"></label><div class="bdscan-photo-status"></div><label class="bdscan-manual-label">Ou saisir l’ISBN / EAN</label><input data-manual-input inputmode="numeric" autocomplete="off" placeholder="978…"><button data-use>Utiliser ce code</button></div>`;
     document.body.appendChild(root);root.querySelector('.bdscan-close').onclick=closeScanner;active={root,stop:false,stream:null};startCamera(origin,root);
   }
+
+  window.BDDeskScanner={version:window.__BD_EAN_SCANNER_VERSION,open:openScanner,close:closeScanner};
   document.addEventListener('click',e=>{
-    const b=e.target.closest?.('#addScan,#discoverScan,#scanBtn');if(!b)return;
+    const b=e.target.closest?.('#addScan,#mobileAddScan,#discoverScan,#scanBtn');if(!b)return;
     e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-    openScanner(b.id==='addScan'?'add':b.id==='discoverScan'?'discover':'global');
+    const origin=(b.id==='addScan'||b.id==='mobileAddScan')?'add':b.id==='discoverScan'?'discover':'global';
+    openScanner(origin);
   },true);
 })();
