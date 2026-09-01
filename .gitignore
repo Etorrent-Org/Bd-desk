@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+coverage/
+.DS_Store
+.next/
+out/
+dist/
+# Personal collection exports must never be committed
+data/*.csv
+data/private/
+validation-private/
