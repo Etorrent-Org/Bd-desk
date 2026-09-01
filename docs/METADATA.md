@@ -16,9 +16,9 @@ Utilisé pour titre, auteurs, éditeur, description et miniature. Une clé peut 
 
 ### Open Library
 
-Endpoint lecture ISBN : `https://openlibrary.org/isbn/<isbn>.json` et couverture `https://covers.openlibrary.org/b/isbn/...`.
+Endpoint de recherche ISBN : `https://openlibrary.org/search.json?isbn=<isbn>` et couverture `https://covers.openlibrary.org/b/isbn/...`. La Search API est utilisée à la place de l'ancien lookup direct afin d'obtenir une réponse JSON stable et documentée.
 
-Source complémentaire ; une indisponibilité ne bloque pas les autres sources.
+Source complémentaire ; une indisponibilité ne bloque pas les autres sources. Les requêtes utilisent un `User-Agent` identifié par le projet, conformément aux recommandations Open Library.
 
 ## Fusion
 
