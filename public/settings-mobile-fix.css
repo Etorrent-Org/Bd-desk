@@ -1,0 +1,10 @@
+@media (max-width:720px){
+  .people-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .people-grid .person-card{min-width:0;padding:14px 13px;overflow:hidden}
+  .people-grid .person-card strong{display:block;margin:0;font-size:15px;line-height:1.22;overflow-wrap:anywhere}
+  .people-grid .person-card small{display:block;margin-top:7px;color:var(--muted);font-size:11.5px;line-height:1.35;overflow-wrap:anywhere}
+}
+
+@media (max-width:360px){
+  .people-grid{grid-template-columns:1fr}
+}
