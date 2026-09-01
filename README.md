@@ -11,9 +11,10 @@
 
 ## État v1.0
 
-- 36 tests automatisés, exécutés sous Node.js 22 et 24.
-- Couverture CI actuelle du cœur serveur : **98,81 % lignes**, **93,02 % fonctions**, **72,63 % branches**.
-- Live QA : APIs externes tolérantes aux pannes/throttling, build Docker et smoke test `/api/health`.
+- **36/36 tests** automatisés réussis sous Node.js 22 et 24.
+- Couverture CI actuelle du cœur serveur : **98,69 % lignes**, **91,95 % fonctions**, **70,61 % branches**.
+- Live QA : **Open Library HTTP 200**, **BnF SRU HTTP 200**, Google Books appelé mais limité en CI par un **HTTP 429 de quota anonyme** ; une clé Google Books lève cette limite.
+- Build Docker et smoke test réel `/api/health` : **OK**.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
 
@@ -68,6 +69,8 @@ BD_DESK_LICENSE_SECRET='votre-secret-long' npm run license:generate -- owner
 ```
 
 La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
+
+> **Commercialisation :** le repository est actuellement public. Un utilisateur qui contrôle son instance peut donc modifier le code de vérification de licence. Pour une offre Premium réellement vendable, les droits commerciaux sensibles doivent être validés par un service d'entitlement/backend contrôlé par l'éditeur. La licence locale v1 est adaptée aux previews, tests et déploiements de confiance, pas à une protection anti-contournement forte.
 
 ## Documentation
 
