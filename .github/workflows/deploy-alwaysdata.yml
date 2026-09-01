@@ -20,10 +20,10 @@ env:
   ALWAYSDATA_HOST: ssh-tatoune.alwaysdata.net
   ALWAYSDATA_USER: tatoune
   ALWAYSDATA_TARGET: /home/tatoune/www/bd-desk
+  ALWAYSDATA_SITE_HOST: tatoune.alwaysdata.net
   PREVIEW_URL: https://tatoune.alwaysdata.net
   ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD }}
   ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY }}
-  ALWAYSDATA_SITE_ID: ${{ secrets.ALWAYSDATA_SITE_ID }}
 
 jobs:
   deploy:
@@ -73,30 +73,36 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
 
       - name: alwaysdata API restart not configured
-        if: env.ALWAYSDATA_API_KEY == '' || env.ALWAYSDATA_SITE_ID == ''
+        if: env.ALWAYSDATA_API_KEY == ''
         run: |
-          echo '::error::Repository secrets ALWAYSDATA_API_KEY and ALWAYSDATA_SITE_ID are required to restart the HTTP site after deployment.'
+          echo '::error::Repository secret ALWAYSDATA_API_KEY is required to restart the HTTP site after deployment.'
           exit 1
 
-      - name: Restart alwaysdata HTTP site
-        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
+      - name: Discover and restart alwaysdata HTTP site
+        if: env.ALWAYSDATA_API_KEY != ''
         run: |
+          SITES="$(curl -fsS --basic --user "${ALWAYSDATA_API_KEY} account=${ALWAYSDATA_USER}:" https://api.alwaysdata.com/v1/site/)"
+          SITE_ID="$(printf '%s' "$SITES" | python3 -c 'import json,sys; x=json.load(sys.stdin); pools=[x] if isinstance(x,list) else [x.get(k) for k in ("results","data","objects") if isinstance(x.get(k),list)]; items=pools[0] if pools else []; host=sys.argv[1]; hits=[s for s in items if host in (s.get("addresses") or [])]; print(hits[0]["id"] if len(hits)==1 else "")' "$ALWAYSDATA_SITE_HOST")"
+          if [ -z "$SITE_ID" ]; then
+            echo "::error::Unable to resolve alwaysdata site id for $ALWAYSDATA_SITE_HOST"
+            exit 1
+          fi
           curl -fsS --retry 3 --retry-delay 2 \
             --request POST \
             --basic \
             --user "${ALWAYSDATA_API_KEY} account=${ALWAYSDATA_USER}:" \
             --header 'alwaysdata-synchronous: yes' \
-            "https://api.alwaysdata.com/v1/site/${ALWAYSDATA_SITE_ID}/restart/"
+            "https://api.alwaysdata.com/v1/site/${SITE_ID}/restart/"
           echo
 
       - name: Preview health check
-        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
+        if: env.ALWAYSDATA_API_KEY != ''
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
       - name: Verify live metadata normalization
-        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
+        if: env.ALWAYSDATA_API_KEY != ''
         run: |
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
           node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
