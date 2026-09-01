@@ -22,6 +22,8 @@ env:
   ALWAYSDATA_TARGET: /home/tatoune/www/bd-desk
   PREVIEW_URL: https://tatoune.alwaysdata.net
   ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD }}
+  ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY }}
+  ALWAYSDATA_SITE_ID: ${{ secrets.ALWAYSDATA_SITE_ID }}
 
 jobs:
   deploy:
@@ -70,37 +72,32 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"return 'Glénat';\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
 
-      - name: Runtime diagnostics before restart
-        if: env.ALWAYSDATA_PASSWORD != ''
-        env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+      - name: alwaysdata API restart not configured
+        if: env.ALWAYSDATA_API_KEY == '' || env.ALWAYSDATA_SITE_ID == ''
         run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" 'echo "=== processes ==="; ps -u "$(id -u)" -o pid=,ppid=,etime=,args= | grep -E "node|server\.js|alwaysdata-start" || true; echo "=== listeners ==="; ss -ltnp 2>/dev/null | grep -E "node|3096|127\.0\.0\.1|0\.0\.0\.0" || true; echo "=== local 3096 health ==="; curl -sS --max-time 3 http://127.0.0.1:3096/api/health || true; echo; echo "=== local 3096 discover ==="; curl -sS --max-time 8 "http://127.0.0.1:3096/api/discover?isbn=9782344059814" || true; echo'
+          echo '::error::Repository secrets ALWAYSDATA_API_KEY and ALWAYSDATA_SITE_ID are required to restart the HTTP site after deployment.'
+          exit 1
 
-      - name: Restart BD Desk backend
-        if: env.ALWAYSDATA_PASSWORD != ''
-        env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+      - name: Restart alwaysdata HTTP site
+        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
         run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "pkill -TERM -f '/home/tatoune/www/bd-desk/[s]rc/server.js' || true"
-          sleep 4
-
-      - name: Runtime diagnostics after restart
-        if: env.ALWAYSDATA_PASSWORD != ''
-        env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
-        run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" 'echo "=== processes ==="; ps -u "$(id -u)" -o pid=,ppid=,etime=,args= | grep -E "node|server\.js|alwaysdata-start" || true; echo "=== listeners ==="; ss -ltnp 2>/dev/null | grep -E "node|3096|127\.0\.0\.1|0\.0\.0\.0" || true; echo "=== local 3096 health ==="; curl -sS --max-time 3 http://127.0.0.1:3096/api/health || true; echo; echo "=== local 3096 discover ==="; curl -sS --max-time 8 "http://127.0.0.1:3096/api/discover?isbn=9782344059814" || true; echo'
+          curl -fsS --retry 3 --retry-delay 2 \
+            --request POST \
+            --basic \
+            --user "${ALWAYSDATA_API_KEY} account=${ALWAYSDATA_USER}:" \
+            --header 'alwaysdata-synchronous: yes' \
+            "https://api.alwaysdata.com/v1/site/${ALWAYSDATA_SITE_ID}/restart/"
+          echo
 
       - name: Preview health check
-        if: env.ALWAYSDATA_PASSWORD != ''
+        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
         run: |
-          curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
+          curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
       - name: Verify live metadata normalization
-        if: env.ALWAYSDATA_PASSWORD != ''
+        if: env.ALWAYSDATA_API_KEY != '' && env.ALWAYSDATA_SITE_ID != ''
         run: |
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
           node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
-          echo "Live metadata normalization verified."
+          echo 'Live metadata normalization verified.'
