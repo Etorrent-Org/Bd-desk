@@ -18,17 +18,50 @@
       else toast('Scanner caméra indisponible');
     }catch{toast('Impossible de charger le scanner caméra');}
   }
+  function choose(candidates,field,order=['bnf','google-books','open-library']){
+    for(const source of order){const c=candidates.find(x=>x.source===source&&x[field]);if(c)return c[field]}
+    return null;
+  }
   function openAdd(isbn=''){
     const modal=document.getElementById('modal');
     if(!modal)return;
-    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec scan ISBN/EAN si besoin.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button></div></div><div class="field"><label>Série</label><input name="series" required></div><div class="field"><label>Tome</label><input name="number"></div><div class="field wide"><label>Titre</label><input name="title" required></div><div class="field"><label>Éditeur</label><input name="publisher"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
+    let discoveredMeta=null,lookupToken=0,lookupTimer=null;
+    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
     modal.classList.remove('hidden');
+    const isbnInput=document.getElementById('addIsbn'),status=document.getElementById('isbnLookupStatus');
+    const lookup=async()=>{
+      const value=isbnInput.value.replace(/[^0-9Xx]/g,'');
+      if(![10,13].includes(value.length)){status.textContent='';discoveredMeta=null;return;}
+      const token=++lookupToken;status.textContent='Recherche Google Books, Open Library et BnF…';
+      try{
+        const r=await fetch('/api/discover?isbn='+encodeURIComponent(value));
+        const body=await r.json().catch(()=>({}));
+        if(token!==lookupToken)return;
+        if(!r.ok)throw new Error(body.error||'Recherche impossible');
+        const candidates=Array.isArray(body.candidates)?body.candidates:[];
+        if(!candidates.length){status.textContent='ISBN reconnu, mais aucune métadonnée trouvée. Saisie manuelle possible.';discoveredMeta=null;return;}
+        const title=choose(candidates,'title');
+        const publisher=choose(candidates,'publisher');
+        const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
+        discoveredMeta={title,publisher,coverUrl,source:'isbn-discover'};
+        const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries');
+        if(title&&!titleInput.value)titleInput.value=title;
+        if(publisher&&!publisherInput.value)publisherInput.value=publisher;
+        if(title&&!seriesInput.value)seriesInput.value=title;
+        const sources=[...new Set(candidates.map(c=>c.source).filter(Boolean))].map(s=>s==='google-books'?'Google Books':s==='open-library'?'Open Library':s==='bnf'?'BnF':s);
+        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Vérifiez surtout Série et Tome.`;
+      }catch(e){if(token===lookupToken){status.textContent=e.message||'Recherche de métadonnées impossible';discoveredMeta=null;}}
+    };
+    isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(lookup,220)});
+    if(isbn){lookupTimer=setTimeout(lookup,80)}
     document.getElementById('mobileAddCancel').onclick=()=>modal.classList.add('hidden');
     document.getElementById('mobileAddScan').onclick=openCameraScanner;
     document.getElementById('mobileAddForm').onsubmit=async e=>{
       e.preventDefault();
       const data=Object.fromEntries(new FormData(e.currentTarget));
       data.purchasePrice=data.purchasePrice?Number(data.purchasePrice):null;
+      if(discoveredMeta?.coverUrl)data.coverUrl=discoveredMeta.coverUrl;
+      if(discoveredMeta)data.source=discoveredMeta.source;
       const r=await fetch('/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
       const body=await r.json().catch(()=>({}));
       if(!r.ok){toast(body.error||'Impossible d’ajouter cet album');return;}
