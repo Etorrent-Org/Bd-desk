@@ -42,14 +42,15 @@
         if(!candidates.length){status.textContent='ISBN reconnu, mais aucune métadonnée trouvée. Saisie manuelle possible.';discoveredMeta=null;return;}
         const title=choose(candidates,'title');
         const publisher=choose(candidates,'publisher');
+        const series=choose(candidates,'series',['open-library','bnf','google-books']);
         const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
-        discoveredMeta={title,publisher,coverUrl,source:'isbn-discover'};
+        discoveredMeta={title,publisher,series,coverUrl,source:'isbn-discover'};
         const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries');
         if(title&&!titleInput.value)titleInput.value=title;
         if(publisher&&!publisherInput.value)publisherInput.value=publisher;
-        if(title&&!seriesInput.value)seriesInput.value=title;
+        if(series&&!seriesInput.value)seriesInput.value=Array.isArray(series)?series[0]:series;
         const sources=[...new Set(candidates.map(c=>c.source).filter(Boolean))].map(s=>s==='google-books'?'Google Books':s==='open-library'?'Open Library':s==='bnf'?'BnF':s);
-        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Vérifiez surtout Série et Tome.`;
+        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier si la source ne les fournit pas.`;
       }catch(e){if(token===lookupToken){status.textContent=e.message||'Recherche de métadonnées impossible';discoveredMeta=null;}}
     };
     isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(lookup,220)});
