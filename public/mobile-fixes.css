@@ -10,6 +10,8 @@
   .page-head>div{min-width:0}
   .page-head p{line-height:1.35}
   .page-head .btn{flex:0 0 auto}
+  .head-actions{gap:6px;flex:0 0 auto}
+  .head-actions .btn{padding:8px 10px;font-size:12px;border-radius:10px}
 
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:24px}
   .kpi:nth-child(4){display:block}
@@ -23,14 +25,27 @@
   .section-title{margin-bottom:12px}
   .covers{gap:12px;margin-right:-14px;padding-right:14px;padding-bottom:7px;scroll-padding-left:14px;scrollbar-width:none}
   .covers::-webkit-scrollbar{display:none}
-  .album-card{min-width:124px}
+  .album-card{min-width:0}
+  .covers .album-card{min-width:124px}
   .album-card h3{font-size:12px;margin-top:9px}
   .album-card p{font-size:12px}
+
+  .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;flex-wrap:nowrap}
+  .toolbar input{width:100%;min-width:0;height:44px}
+  .toolbar select{width:104px;height:44px;padding-left:10px;padding-right:8px}
+
+  .album-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 9px}
+  .album-grid .cover-wrap{border-radius:9px;box-shadow:0 4px 12px rgba(15,23,42,.08)}
+  .album-grid .album-card h3{font-size:10.5px;line-height:1.2;margin:7px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .album-grid .album-card p{font-size:10.5px;line-height:1.25;margin:0}
+  .album-grid .album-card p:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
   .cover-fallback{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(155deg,color-mix(in srgb,var(--accent) 18%,var(--panel)) 0 38%,color-mix(in srgb,var(--nav) 88%,var(--panel)) 38% 100%)!important;color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.35);font:800 13px/1.05 var(--display)!important;text-transform:uppercase;letter-spacing:.2px}
   .cover-fallback:before{content:"BD";position:absolute;right:-7px;bottom:-10px;font:900 52px/1 var(--display);opacity:.08;transform:rotate(-8deg);z-index:-1}
   .cover-fallback:after{content:"";position:absolute;inset:8px;border:1px solid rgba(255,255,255,.13);border-radius:5px;z-index:-1}
   .cover-fallback span{max-width:88%;display:block;overflow:hidden;text-overflow:ellipsis}
+  .album-grid .cover-fallback{font-size:10.5px!important;padding:8px!important}
+  .album-grid .cover-fallback:before{font-size:38px}
 
   .resume-grid{gap:10px;padding-bottom:8px}
   .resume{grid-template-columns:54px minmax(0,1fr);align-items:center;gap:12px;padding:12px}
@@ -54,11 +69,16 @@
   body[data-theme="comics"] .kpi{box-shadow:2px 2px 0 #02070d}
 }
 
+@media (max-width:360px){
+  .album-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
+}
+
 @media (max-width:390px){
   .content{padding-left:12px;padding-right:12px}
   .page-head{gap:8px}
   .page-head h1{font-size:21px}
   .page-head p{font-size:13px}
   .page-head .btn{padding:7px 9px;font-size:11px}
-  .album-card{min-width:118px}
+  .head-actions .btn{padding:7px 8px;font-size:11px}
+  .covers .album-card{min-width:118px}
 }
