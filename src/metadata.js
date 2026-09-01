@@ -34,16 +34,54 @@ export function bnfSruUrl(isbn) {
   return u.toString();
 }
 
+function cleanText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim() || null;
+}
+
+function normalizePublisher(value) {
+  let s = cleanText(value);
+  if (!s) return null;
+  s = s.replace(/\s*\([^()]*\)\s*$/, '').trim();
+  const keepLower = new Set(['de','du','des','la','le','les','et','the','of','and']);
+  return s.split(/\s+/).map((word, i) => {
+    const low = word.toLocaleLowerCase('fr');
+    if (i === 0 || keepLower.has(low) || !/^[a-zà-ÿ][a-zà-ÿ'’-]+$/u.test(word)) return word;
+    return word.charAt(0).toLocaleUpperCase('fr') + word.slice(1);
+  }).join(' ');
+}
+
+function extractSeriesInfo(value, allowBareNumber=false) {
+  const s = cleanText(value);
+  if (!s || /^https?:/i.test(s)) return {series:null, seriesNumber:null};
+  const explicit = s.match(/^(.+?)\s*(?:[-–—,:;]\s*)?(?:t(?:ome)?|vol(?:ume)?|n(?:um(?:éro)?)?)[°ºo.]?\s*0*(\d+(?:[.,]\d+)?)\s*$/i)
+    || s.match(/^(.+?)\s*#\s*0*(\d+(?:[.,]\d+)?)\s*$/i);
+  if (explicit) return {series:cleanText(explicit[1]), seriesNumber:explicit[2].replace(',', '.')};
+  if (allowBareNumber) {
+    const bare = s.match(/^(.+?)[\s.;,:-]+0*(\d+(?:[.,]\d+)?)\s*$/);
+    if (bare && bare[1].trim().length > 2) return {series:cleanText(bare[1]), seriesNumber:bare[2].replace(',', '.')};
+  }
+  return {series:s, seriesNumber:null};
+}
+
+function extractStructuredTitle(value) {
+  const s = cleanText(value);
+  if (!s) return {title:null, series:null, seriesNumber:null};
+  const m = s.match(/^(.+?)\s*[-–—,:]\s*(?:t(?:ome)?|vol(?:ume)?)[°ºo.]?\s*0*(\d+(?:[.,]\d+)?)\s*[-–—:]\s*(.+)$/i);
+  return m ? {title:cleanText(m[3]), series:cleanText(m[1]), seriesNumber:m[2].replace(',', '.')} : {title:s, series:null, seriesNumber:null};
+}
+
 export function parseGoogleBooks(data) {
   return (data?.items || []).map(item => {
-    const v = item.volumeInfo || {};
+    const v = item.volumeInfo || {}, structured = extractStructuredTitle(v.title);
+    const rawSeries = item.seriesInfo?.shortSeriesBookTitle || null;
+    const parsedSeries = extractSeriesInfo(rawSeries, true);
     return {
-      source: 'google-books', sourceId: item.id, title: v.title || null,
-      subtitle: v.subtitle || null, authors: v.authors || [], publisher: v.publisher || null,
+      source: 'google-books', sourceId: item.id, title: structured.title,
+      subtitle: v.subtitle || null, authors: v.authors || [], publisher: normalizePublisher(v.publisher),
       publishedDate: v.publishedDate || null, description: v.description || null,
       categories: v.categories || [], pageCount: v.pageCount || null,
-      series: item.seriesInfo?.shortSeriesBookTitle || item.seriesInfo?.seriesId || null,
-      seriesNumber: item.seriesInfo?.bookDisplayNumber || null,
+      series: parsedSeries.series || structured.series || null,
+      seriesNumber: item.seriesInfo?.bookDisplayNumber || parsedSeries.seriesNumber || structured.seriesNumber || null,
       coverUrl: v.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || null,
       identifiers: v.industryIdentifiers || []
     };
@@ -53,43 +91,68 @@ export function parseGoogleBooks(data) {
 export function parseOpenLibrary(data) {
   if (!data || data.error) return [];
   if (Array.isArray(data.docs)) {
-    return data.docs.map(doc => ({
-      source: 'open-library',
-      sourceId: doc.edition_key?.[0] || doc.key || null,
-      title: doc.title || null,
-      publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : null,
-      publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : null,
-      pageCount: null,
-      authors: Array.isArray(doc.author_name) ? doc.author_name : [],
-      identifiers: Array.isArray(doc.isbn) ? doc.isbn : [],
-      series: Array.isArray(doc.series) ? doc.series[0] : (doc.series || null),
-      coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null
-    }));
+    return data.docs.map(doc => {
+      const structured = extractStructuredTitle(doc.title);
+      const rawSeries = Array.isArray(doc.series) ? doc.series[0] : (doc.series || null);
+      const parsedSeries = extractSeriesInfo(rawSeries, true);
+      return {
+        source: 'open-library',
+        sourceId: doc.edition_key?.[0] || doc.key || null,
+        title: structured.title,
+        publisher: normalizePublisher(Array.isArray(doc.publisher) ? doc.publisher[0] : null),
+        publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : null,
+        pageCount: null,
+        authors: Array.isArray(doc.author_name) ? doc.author_name : [],
+        identifiers: Array.isArray(doc.isbn) ? doc.isbn : [],
+        series: parsedSeries.series || structured.series || null,
+        seriesNumber: parsedSeries.seriesNumber || structured.seriesNumber || null,
+        coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null
+      };
+    });
   }
+  const structured = extractStructuredTitle(data.title);
+  const rawSeries = Array.isArray(data.series) ? data.series[0] : (data.series || null);
+  const parsedSeries = extractSeriesInfo(rawSeries, true);
   return [{
-    source: 'open-library', sourceId: data.key || null, title: data.title || null,
-    publisher: Array.isArray(data.publishers) ? data.publishers[0] : null,
+    source: 'open-library', sourceId: data.key || null, title: structured.title,
+    publisher: normalizePublisher(Array.isArray(data.publishers) ? data.publishers[0] : null),
     publishedDate: data.publish_date || null,
     pageCount: data.number_of_pages || null,
     authors: (data.authors || []).map(a => a.key || a.name).filter(Boolean),
     identifiers: data.isbn_13 || data.isbn_10 || [],
-    series: Array.isArray(data.series) ? data.series[0] : (data.series || null)
+    series: parsedSeries.series || structured.series || null,
+    seriesNumber: parsedSeries.seriesNumber || structured.seriesNumber || null
   }];
 }
 
-function xmlText(xml, tag) {
-  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const m = String(xml).match(re);
-  return m ? m[1].replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').trim() : null;
+function xmlTexts(xml, tag) {
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+  const out=[]; let m;
+  while ((m=re.exec(String(xml)))) {
+    const value=m[1].replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').trim();
+    if(value) out.push(value);
+  }
+  return out;
 }
+function xmlText(xml, tag) { return xmlTexts(xml, tag)[0] || null; }
+
 export function parseBnfDublinCore(xml) {
   if (!xml || !String(xml).includes('numberOfRecords')) return [];
   const count = Number(xmlText(xml, 'srw:numberOfRecords') || xmlText(xml, 'numberOfRecords') || 0);
   if (!count) return [];
+  const rawTitle=xmlText(xml,'dc:title');
+  const title=cleanText(rawTitle?.split(/\s+\/\s+/)[0]);
+  const relations=xmlTexts(xml,'dc:relation');
+  let relationSeries={series:null,seriesNumber:null};
+  for(const relation of relations){
+    const parsed=extractSeriesInfo(relation,true);
+    if(parsed.seriesNumber){relationSeries=parsed;break;}
+  }
   return [{
-    source: 'bnf', sourceId: xmlText(xml,'dc:identifier'), title: xmlText(xml,'dc:title'),
-    publisher: xmlText(xml,'dc:publisher'), publishedDate: xmlText(xml,'dc:date'),
-    description: xmlText(xml,'dc:description'), authors: [xmlText(xml,'dc:creator')].filter(Boolean)
+    source: 'bnf', sourceId: xmlText(xml,'dc:identifier'), title,
+    publisher: normalizePublisher(xmlText(xml,'dc:publisher')), publishedDate: xmlText(xml,'dc:date'),
+    description: xmlText(xml,'dc:description'), authors: [xmlText(xml,'dc:creator')].filter(Boolean),
+    series: relationSeries.series, seriesNumber: relationSeries.seriesNumber
   }];
 }
 
