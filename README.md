@@ -11,10 +11,21 @@
 
 ## État v1.0
 
-- 36 tests automatisés.
-- Couverture du cœur serveur > 95 % sur les lignes et fonctions.
+- 36 tests automatisés, exécutés sous Node.js 22 et 24.
+- Couverture CI actuelle du cœur serveur : **98,81 % lignes**, **93,02 % fonctions**, **72,63 % branches**.
+- Live QA : APIs externes tolérantes aux pannes/throttling, build Docker et smoke test `/api/health`.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
+
+## Preview iPad
+
+La preview de développement cible est :
+
+`https://tatoune.alwaysdata.net/`
+
+Le workflow GitHub `Deploy preview to alwaysdata` synchronise automatiquement les changements après configuration du secret de déploiement. La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
+
+Voir [Déploiement alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md).
 
 ## Démarrage local
 
@@ -72,6 +83,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [Sécurité](docs/SECURITY.md)
 - [Tests et validation](docs/TESTING.md)
 - [Test iPad / PWA](docs/DEPLOYMENT-IPAD.md)
+- [Preview alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md)
 
 ## Structure
 
@@ -80,9 +92,10 @@ src/                    serveur, données, licence, MCP, métadonnées
 public/                 PWA et design system
 scripts/                seed, validation, licences, tests API externes
 tests/                  tests automatisés et fixtures synthétiques
+deploy/                 lanceurs d'environnements de preview
 docs/                   documentation produit et technique
 integrations/            guides n8n, Make, Notion, MCP
-.github/workflows/       CI + contrôle hebdomadaire des APIs externes
+.github/workflows/       CI, Live QA et déploiement preview
 ```
 
 ## Données privées
