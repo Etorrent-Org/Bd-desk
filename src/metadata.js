@@ -18,7 +18,7 @@ export function openLibraryUrl(isbn) {
   const n = canonicalIsbn(isbn);
   const u = new URL('https://openlibrary.org/search.json');
   u.searchParams.set('isbn', n);
-  u.searchParams.set('fields', 'key,title,author_name,publisher,first_publish_year,isbn,cover_i,edition_key');
+  u.searchParams.set('fields', 'key,title,author_name,publisher,first_publish_year,isbn,cover_i,edition_key,series');
   u.searchParams.set('limit', '5');
   return u.toString();
 }
@@ -42,6 +42,8 @@ export function parseGoogleBooks(data) {
       subtitle: v.subtitle || null, authors: v.authors || [], publisher: v.publisher || null,
       publishedDate: v.publishedDate || null, description: v.description || null,
       categories: v.categories || [], pageCount: v.pageCount || null,
+      series: item.seriesInfo?.shortSeriesBookTitle || item.seriesInfo?.seriesId || null,
+      seriesNumber: item.seriesInfo?.bookDisplayNumber || null,
       coverUrl: v.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || null,
       identifiers: v.industryIdentifiers || []
     };
@@ -60,6 +62,7 @@ export function parseOpenLibrary(data) {
       pageCount: null,
       authors: Array.isArray(doc.author_name) ? doc.author_name : [],
       identifiers: Array.isArray(doc.isbn) ? doc.isbn : [],
+      series: Array.isArray(doc.series) ? doc.series[0] : (doc.series || null),
       coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null
     }));
   }
@@ -69,7 +72,8 @@ export function parseOpenLibrary(data) {
     publishedDate: data.publish_date || null,
     pageCount: data.number_of_pages || null,
     authors: (data.authors || []).map(a => a.key || a.name).filter(Boolean),
-    identifiers: data.isbn_13 || data.isbn_10 || []
+    identifiers: data.isbn_13 || data.isbn_10 || [],
+    series: Array.isArray(data.series) ? data.series[0] : (data.series || null)
   }];
 }
 
