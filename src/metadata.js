@@ -42,12 +42,18 @@ function normalizePublisher(value) {
   let s = cleanText(value);
   if (!s) return null;
   s = s.replace(/\s*\([^()]*\)\s*$/, '').trim();
+  if (/^comix\s+buro$/i.test(s)) return 'Glénat';
   const keepLower = new Set(['de','du','des','la','le','les','et','the','of','and']);
   return s.split(/\s+/).map((word, i) => {
     const low = word.toLocaleLowerCase('fr');
     if (i === 0 || keepLower.has(low) || !/^[a-zà-ÿ][a-zà-ÿ'’-]+$/u.test(word)) return word;
     return word.charAt(0).toLocaleUpperCase('fr') + word.slice(1);
   }).join(' ');
+}
+
+function collectionFromPublisher(value) {
+  const s = cleanText(value)?.replace(/\s*\([^()]*\)\s*$/, '').trim();
+  return /^comix\s+buro$/i.test(s || '') ? 'Comix Buro' : null;
 }
 
 function extractSeriesInfo(value, allowBareNumber=false) {
@@ -142,6 +148,7 @@ export function parseBnfDublinCore(xml) {
   if (!count) return [];
   const rawTitle=xmlText(xml,'dc:title');
   const title=cleanText(rawTitle?.split(/\s+\/\s+/)[0]);
+  const rawPublisher=xmlText(xml,'dc:publisher');
   const relations=xmlTexts(xml,'dc:relation');
   let relationSeries={series:null,seriesNumber:null};
   for(const relation of relations){
@@ -150,7 +157,8 @@ export function parseBnfDublinCore(xml) {
   }
   return [{
     source: 'bnf', sourceId: xmlText(xml,'dc:identifier'), title,
-    publisher: normalizePublisher(xmlText(xml,'dc:publisher')), publishedDate: xmlText(xml,'dc:date'),
+    publisher: normalizePublisher(rawPublisher), collection: collectionFromPublisher(rawPublisher),
+    publishedDate: xmlText(xml,'dc:date'),
     description: xmlText(xml,'dc:description'), authors: [xmlText(xml,'dc:creator')].filter(Boolean),
     series: relationSeries.series, seriesNumber: relationSeries.seriesNumber
   }];
