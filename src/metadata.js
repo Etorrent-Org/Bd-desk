@@ -15,7 +15,12 @@ export function googleBooksUrl(isbn, apiKey='') {
 }
 
 export function openLibraryUrl(isbn) {
-  return `https://openlibrary.org/isbn/${encodeURIComponent(canonicalIsbn(isbn))}.json`;
+  const n = canonicalIsbn(isbn);
+  const u = new URL('https://openlibrary.org/search.json');
+  u.searchParams.set('isbn', n);
+  u.searchParams.set('fields', 'key,title,author_name,publisher,first_publish_year,isbn,cover_i,edition_key');
+  u.searchParams.set('limit', '5');
+  return u.toString();
 }
 
 export function bnfSruUrl(isbn) {
@@ -45,6 +50,19 @@ export function parseGoogleBooks(data) {
 
 export function parseOpenLibrary(data) {
   if (!data || data.error) return [];
+  if (Array.isArray(data.docs)) {
+    return data.docs.map(doc => ({
+      source: 'open-library',
+      sourceId: doc.edition_key?.[0] || doc.key || null,
+      title: doc.title || null,
+      publisher: Array.isArray(doc.publisher) ? doc.publisher[0] : null,
+      publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : null,
+      pageCount: null,
+      authors: Array.isArray(doc.author_name) ? doc.author_name : [],
+      identifiers: Array.isArray(doc.isbn) ? doc.isbn : [],
+      coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null
+    }));
+  }
   return [{
     source: 'open-library', sourceId: data.key || null, title: data.title || null,
     publisher: Array.isArray(data.publishers) ? data.publishers[0] : null,
@@ -104,7 +122,10 @@ export async function fetchMetadata(isbn, opts={}) {
   const out = [];
   for (const [source, url] of requests) {
     try {
-      const res = await fetchImpl(url, { headers: {'user-agent':'BD-Desk/1.0'} });
+      const res = await fetchImpl(url, { headers: {
+        'user-agent':'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)',
+        'accept': source === 'bnf' ? 'application/xml,text/xml;q=0.9,*/*;q=0.8' : 'application/json'
+      } });
       if (!res.ok) continue;
       if (source === 'bnf') out.push(...parseBnfDublinCore(await res.text()));
       else if (source === 'google-books') out.push(...parseGoogleBooks(await res.json()));
