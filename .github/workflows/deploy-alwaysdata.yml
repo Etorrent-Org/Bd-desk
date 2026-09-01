@@ -62,9 +62,17 @@ jobs:
             ./ "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "chmod +x '$ALWAYSDATA_TARGET/deploy/alwaysdata-start.sh'"
 
+      - name: Restart BD Desk backend
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+        run: |
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "pkill -TERM -f '/home/tatoune/www/bd-desk/[s]rc/server.js' || true"
+          sleep 3
+
       - name: Preview smoke check
         if: env.ALWAYSDATA_PASSWORD != ''
         run: |
-          curl -fsS --retry 5 --retry-delay 3 "$PREVIEW_URL/api/health"
+          curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
           echo "Preview reachable: $PREVIEW_URL"
