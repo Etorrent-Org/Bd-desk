@@ -3,7 +3,7 @@
   const modal=document.getElementById('modal');
   if(!drawer||!modal)return;
 
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const euro=v=>v==null||v===''?'—':Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
   const flash=message=>{
     let t=document.getElementById('detailFlash');
@@ -40,6 +40,29 @@
     setField('Éditeur',a.publisher||'—');setField('Scénario',a.writer||'—');setField('Dessin',a.artist||'—');
     setField('Édition originale',a.first_edition?'Oui':'Non / inconnue');setField('Prix d’achat',euro(a.purchase_price));
   }
+  function openPremiumInfo(){
+    modal.innerHTML=`<div class="modal-card premium-info-modal"><div class="premium-lock">✦</div><h2>Enrichissement automatique</h2><p>Cette fonction est incluse dans <b>BD Desk Premium</b>. Elle complète automatiquement les métadonnées éditoriales à partir des sources disponibles, sans écraser silencieusement vos informations personnelles de collection.</p><div class="premium-benefits"><span>Couverture et résumé</span><span>Éditeur et métadonnées</span><span>Sources et provenance</span></div><div class="modal-actions"><button type="button" class="btn" id="stayOnAlbum">Rester sur la fiche</button><button type="button" class="btn primary" id="viewPremium">Voir Premium</button></div></div>`;
+    modal.classList.remove('hidden');
+    document.getElementById('stayOnAlbum').onclick=()=>modal.classList.add('hidden');
+    document.getElementById('viewPremium').onclick=()=>{
+      modal.classList.add('hidden');drawer.classList.add('hidden');
+      const settings=[...document.querySelectorAll('[data-route="settings"]')][0];
+      if(settings)settings.click();else{location.hash='#settings';window.dispatchEvent(new HashChangeEvent('hashchange'))}
+    };
+  }
+  async function runEnrichment(){
+    const album=await resolveAlbum().catch(()=>null);
+    if(!album){flash('Album introuvable');return}
+    const license=await fetch('/api/license').then(r=>r.json()).catch(()=>({plan:'free'}));
+    if(license.plan!=='premium'){openPremiumInfo();return}
+    flash('Enrichissement…');
+    const r=await fetch(`/api/metadata/${album.id}/enrich`,{method:'POST'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){flash(data.error||'Enrichissement impossible');return}
+    if(data.album)updateVisible(data.album);
+    flash('Fiche enrichie');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }
   function openEdit(a){
     modal.innerHTML=`<div class="modal-card edit-album-modal"><h2>Modifier l’album</h2><p class="muted">Les données personnelles ne sont modifiées que par vous.</p><form id="editAlbumForm"><div class="form-grid"><div class="field"><label>Série</label><input name="series" value="${esc(a.series||'')}"></div><div class="field"><label>Tome</label><input name="number" value="${esc(a.number||'')}"></div><div class="field wide"><label>Titre</label><input name="title" value="${esc(a.title||'')}"></div><div class="field"><label>Éditeur</label><input name="publisher" value="${esc(a.publisher||'')}"></div><div class="field"><label>Scénario</label><input name="writer" value="${esc(a.writer||'')}"></div><div class="field"><label>Dessin</label><input name="artist" value="${esc(a.artist||'')}"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01" value="${a.purchase_price??''}"></div><div class="field"><label>Valeur estimée (€)</label><input name="marketValue" type="number" step="0.01" value="${a.market_value??''}"></div><div class="field wide check-field"><label><input name="firstEdition" type="checkbox" ${a.first_edition?'checked':''}> Édition originale</label></div><div class="field wide"><label>Commentaire personnel</label><textarea name="comment" rows="4">${esc(a.comment||'')}</textarea></div></div><div class="modal-actions"><button type="button" class="btn" id="cancelEditAlbum">Annuler</button><button class="btn primary">Enregistrer</button></div></form></div>`;
     modal.classList.remove('hidden');
@@ -64,6 +87,10 @@
     const dl=body.querySelector('dl');if(dl)dl.insertAdjacentHTML('beforebegin','<div class="detail-section-title">Informations</div>');
     edit.onclick=async()=>{edit.disabled=true;const album=await resolveAlbum().catch(()=>null);edit.disabled=false;if(!album){flash('Album introuvable');return}openEdit(album)};
   }
+  drawer.addEventListener('click',e=>{
+    const b=e.target.closest?.('#enrichBtn');if(!b)return;
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();runEnrichment();
+  },true);
   const observer=new MutationObserver(()=>queueMicrotask(enhance));
   observer.observe(drawer,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
 })();
