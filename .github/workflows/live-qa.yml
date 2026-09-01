@@ -2,13 +2,19 @@ name: Live QA
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/live-qa.yml'
+      - 'scripts/check-external-apis.js'
+      - 'src/metadata.js'
+      - 'Dockerfile'
+      - 'package.json'
   workflow_dispatch:
 
 jobs:
   validate-live:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +24,15 @@ jobs:
         run: npm run test:external -- 9782203237766
       - name: Docker build
         run: docker build -t bd-desk:qa .
+      - name: Docker smoke test
+        run: |
+          docker run -d --rm --name bd-desk-qa -p 3096:3096 \
+            -e BD_DESK_LICENSE_SECRET=ci-license-secret-at-least-32-characters \
+            -e WEBHOOK_SIGNING_SECRET=ci-webhook-secret-at-least-32-characters \
+            bd-desk:qa
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3096/api/health; then exit 0; fi
+            sleep 1
+          done
+          docker logs bd-desk-qa
+          exit 1
