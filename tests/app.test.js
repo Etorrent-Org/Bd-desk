@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {openDatabase,createAlbum} from '../src/db.js';
+import {createBdDeskApp} from '../src/app.js';
+import {createLicense} from '../src/license.js';
+import {MCP_PROTOCOL_VERSION} from '../src/mcp.js';
+
+async function withServer(fn){
+  const db=openDatabase(':memory:');
+  createAlbum(db,{series:'Saga',number:'1',title:'Premier',isbn:'9782203237766'});
+  const config={dbPath:':memory:',seedCsvPath:null,licenseSecret:'secret-123',googleBooksApiKey:'',webhookSigningSecret:'hook',allowedOrigins:['https://client.test']};
+  const metadataFetcher=async isbn=>[{source:'bnf',sourceId:'x',title:'Titre BnF',publisher:'Editeur BnF',publishedDate:'2024'}];
+  const webhookCalls=[];
+  const dispatchWebhookImpl=async(hook,event,payload)=>{webhookCalls.push({hook,event,payload});return{ok:true,status:200}};
+  const server=createBdDeskApp(config,{db,seed:false,fetchMetadataImpl:metadataFetcher,dispatchWebhookImpl});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  try{await fn({base,db,config,webhookCalls})}finally{await new Promise(r=>server.close(r))}
+}
+async function activate(base,config){
+  const key=createLicense({sub:'test'},config.licenseSecret);
+  let r=await fetch(base+'/api/license/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key})});
+  assert.equal(r.status,200);
+  r=await fetch(base+'/api/keys',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'test'})});
+  assert.equal(r.status,201);return await r.json();
+}
+const mcpHeaders=apiKey=>({'content-type':'application/json',Authorization:`Bearer ${apiKey}`,'MCP-Protocol-Version':MCP_PROTOCOL_VERSION,'Mcp-Method':'tools/list'});
+
+test('health, dashboard, statiques et sécurité',()=>withServer(async({base})=>{let r=await fetch(base+'/api/health');assert.equal(r.status,200);assert.equal((await r.json()).albums,1);r=await fetch(base+'/api/dashboard');assert.equal((await r.json()).albums,1);r=await fetch(base+'/');assert.equal(r.status,200);assert.match(await r.text(),/BD Desk/);assert.equal(r.headers.get('x-content-type-options'),'nosniff');assert.match(r.headers.get('content-security-policy'),/default-src/)}));
+test('CRUD albums, filtres et export gratuit',()=>withServer(async({base})=>{let r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({series:'Nouvelle',title:'Album'})});assert.equal(r.status,201);const a=await r.json();r=await fetch(base+`/api/albums/${a.id}`);assert.equal((await r.json()).title,'Album');r=await fetch(base+`/api/albums/${a.id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({read:true,wishlist:true})});assert.equal((await r.json()).read,1);r=await fetch(base+'/api/albums?read=1&wishlist=1');assert.ok((await r.json()).total>=1);r=await fetch(base+'/api/export/collection.json');assert.equal(r.status,200);assert.match(r.headers.get('content-disposition'),/attachment/);assert.equal((await r.json()).albums.length,2);r=await fetch(base+`/api/albums/${a.id}`,{method:'DELETE'});assert.equal(r.status,200);assert.equal((await fetch(base+`/api/albums/${a.id}`)).status,404)}));
+test('recherche multi-source gratuite et JSON invalide',()=>withServer(async({base})=>{let r=await fetch(base+'/api/discover?isbn=9782203237766');assert.equal(r.status,200);assert.equal((await r.json()).candidates[0].source,'bnf');r=await fetch(base+'/api/discover?isbn=abc');assert.equal(r.status,400);r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:'{'});assert.equal(r.status,400)}));
+test('prêts : création puis retour',()=>withServer(async({base})=>{let r=await fetch(base+'/api/loans',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({albumId:1,borrower:'Alex'})});assert.equal(r.status,201);const id=(await r.json()).id;r=await fetch(base+`/api/loans/${id}/return`,{method:'PATCH'});assert.equal(r.status,200);r=await fetch(base+'/api/loans');assert.ok((await r.json())[0].returned_at)}));
+test('Premium protège puis active import, stats, enrichissement, API, webhooks et MCP',()=>withServer(async({base,config,webhookCalls})=>{let r=await fetch(base+'/api/import/bdgest',{method:'POST',body:'x'});assert.equal(r.status,402);assert.equal((await fetch(base+'/api/stats/advanced')).status,402);const keyInfo=await activate(base,config);r=await fetch(base+'/api/stats/advanced');assert.equal(r.status,200);r=await fetch(base+'/api/editions/anomalies');assert.equal(r.status,200);r=await fetch(base+'/api/metadata/1/enrich',{method:'POST'});assert.equal(r.status,200);assert.equal((await r.json()).album.publisher,'Editeur BnF');r=await fetch(base+'/api/webhooks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'n8n',url:'https://example.test/hook',events:['album.created']})});assert.equal(r.status,201);const hookId=(await r.json()).id;r=await fetch(base+'/api/webhooks');assert.equal((await r.json()).length,1);r=await fetch(base+'/api/webhooks/'+hookId,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({enabled:false})});assert.equal(r.status,200);r=await fetch(base+'/api/webhooks/'+hookId,{method:'DELETE'});assert.equal(r.status,200);r=await fetch(base+'/api/v1/collection',{headers:{Authorization:`Bearer ${keyInfo.key}`}});assert.equal(r.status,200);r=await fetch(base+'/mcp',{method:'POST',headers:mcpHeaders(keyInfo.key),body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{},_meta:{'io.modelcontextprotocol/clientInfo':{name:'test',version:'1'}}})});assert.equal(r.status,200);assert.equal((await r.json()).result.tools.length>0,true);r=await fetch(base+'/mcp',{method:'POST',headers:{...mcpHeaders(keyInfo.key),'Mcp-Method':'bad'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});assert.equal(r.status,400);r=await fetch(base+'/api/keys/'+keyInfo.id,{method:'DELETE'});assert.equal(r.status,200);assert.equal((await fetch(base+'/api/v1/collection',{headers:{Authorization:`Bearer ${keyInfo.key}`}})).status,401);assert.equal(webhookCalls.length,0)}));
+test('webhook actif émis sur création',()=>withServer(async({base,config,webhookCalls})=>{await activate(base,config);let r=await fetch(base+'/api/webhooks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'n8n',url:'https://example.test/hook',events:['album.created']})});assert.equal(r.status,201);r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({series:'S',title:'Nouveau'})});assert.equal(r.status,201);assert.equal(webhookCalls[0].event,'album.created')}));
+test('routes de synthèse et 404',()=>withServer(async({base})=>{for(const p of ['/api/series','/api/authors','/api/publishers','/api/stats','/api/history','/api/loans']){const r=await fetch(base+p);assert.equal(r.status,200,p)}assert.equal((await fetch(base+'/api/inconnue')).status,404)}));

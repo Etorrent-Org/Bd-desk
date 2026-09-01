@@ -1,0 +1,7 @@
+IdAlbum;ISBN;Serie;Num;NumA;Titre;Editeur;Collection;EO;DL;AI;Cote;Etat;DateAchat;PrixAchat;Note;Scenariste;Dessinateur;Wishlist;AVendre;Perso1;Perso2;Perso3;Perso4;Format;Suivi;Lu;DateLu;Dedicace;DateDedicace;Commentaire;Table
+1;9782203237766;Saga;1;;Premier;Editeur A;;1;10/2022;;35;0;14/06/2023;35;;Auteur A;Dessinateur A;0;0;;;;;1;1;1;14/06/2023;0;;;ALBUM
+2;9782203237766;Saga;1;VAR;Premier variante;Editeur A;;0;11/2022;;;0;15/06/2023;30;;Auteur A;Dessinateur B;0;0;;;;;1;1;0;;0;;;ALBUM
+3;2-87097-043-9;Saga;3;;Troisième;Editeur B;Collection X;1;01/2000;12/1999;12.5;1;01/02/2020;10.5;;Auteur B;Dessinateur C;1;0;;;;;4;1;1;02/02/2020;1;03/03/2020;"Commentaire; avec point-virgule";ALBUM
+4;;One shot;;;Sans ISBN;Editeur C;;0;;;;0;;;;Auteur C;Dessinateur C;0;0;;;;;0;0;0;;0;;;ALBUM
+IdRevue;;Revue;Num;NumA;Titre;Editeur;Periodicite;AuNumero;DateRevue;;Cote;Etat;DateAchat;PrixAchat;;;;;;;;;;;;;;;;Commentaire;Table
+IdParaBD;Reference;Serie;TypeObjet;CategorieObjet;Descriptif;Editeur;Fabricant;Tirage;DateSortie;Auteur;Cote;Etat;DateAchat;PrixAchat;Hauteur;Largeur;Profondeur;Matiere;Aspect;Certificat;Signe;Numerote;Boite;HorsCommerce;TirageHC;;;;;Commentaire;Table

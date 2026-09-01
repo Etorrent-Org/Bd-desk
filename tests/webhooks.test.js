@@ -1,0 +1,3 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import {signWebhook,dispatchWebhook} from '../src/webhooks.js';
+test('signature stable',()=>assert.equal(signWebhook('abc','secret'),signWebhook('abc','secret')));
+test('dispatch signé',async()=>{let got;const fake=async(url,opt)=>{got={url,opt};return{ok:true,status:202}};const r=await dispatchWebhook({url:'https://example.test/hook'},'album.created',{id:1},{fetchImpl:fake,secret:'s'});assert.equal(r.status,202);assert.match(got.opt.headers['x-bd-desk-signature'],/^sha256=/);assert.equal(got.opt.headers['x-bd-desk-event'],'album.created')});

@@ -1,0 +1,286 @@
+openapi: 3.1.0
+info:
+  title: BD Desk API
+  version: 1.0.0
+  description: API locale/privée de BD Desk. Certaines routes nécessitent une licence Premium et/ou une clé API.
+servers:
+  - url: http://localhost:3096
+components:
+  securitySchemes:
+    ApiKeyBearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Album:
+      type: object
+      properties:
+        id: {type: integer}
+        bdgest_id: {type: [string, 'null']}
+        isbn: {type: [string, 'null']}
+        series: {type: string}
+        number: {type: [string, 'null']}
+        title: {type: string}
+        publisher: {type: [string, 'null']}
+        writer: {type: [string, 'null']}
+        artist: {type: [string, 'null']}
+        read: {type: integer, enum: [0, 1]}
+        wishlist: {type: integer, enum: [0, 1]}
+        first_edition: {type: integer, enum: [0, 1]}
+        cover_url: {type: [string, 'null']}
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+paths:
+  /api/health:
+    get:
+      summary: Santé de l'instance
+      responses:
+        '200': {description: OK}
+  /api/license:
+    get:
+      summary: Plan actif
+      responses:
+        '200': {description: Plan et features}
+  /api/license/activate:
+    post:
+      summary: Activer une licence Premium
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties: {key: {type: string}}
+      responses:
+        '200': {description: Licence activée}
+        '400': {description: Licence invalide}
+  /api/dashboard:
+    get:
+      summary: KPI d'accueil
+      responses: {'200': {description: OK}}
+  /api/stats:
+    get:
+      summary: Statistiques essentielles gratuites
+      responses: {'200': {description: OK}}
+  /api/stats/advanced:
+    get:
+      summary: Statistiques avancées Premium
+      responses:
+        '200': {description: OK}
+        '402': {description: Premium requis}
+  /api/editions/anomalies:
+    get:
+      summary: ISBN dupliqués et variantes potentielles
+      responses:
+        '200': {description: OK}
+        '402': {description: Premium requis}
+  /api/series:
+    get:
+      summary: Séries et progression
+      responses: {'200': {description: OK}}
+  /api/authors:
+    get:
+      summary: Auteurs et dessinateurs
+      responses: {'200': {description: OK}}
+  /api/publishers:
+    get:
+      summary: Éditeurs
+      responses: {'200': {description: OK}}
+  /api/history:
+    get:
+      summary: Historique
+      responses: {'200': {description: OK}}
+  /api/loans:
+    get:
+      summary: Lister les prêts
+      responses: {'200': {description: OK}}
+    post:
+      summary: Créer un prêt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [albumId, borrower]
+              properties:
+                albumId: {type: integer}
+                borrower: {type: string}
+                dueAt: {type: [string, 'null']}
+      responses:
+        '201': {description: Créé}
+        '400': {description: Données invalides}
+  /api/loans/{id}/return:
+    patch:
+      summary: Marquer le prêt comme rendu
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Rendu}
+        '404': {description: Introuvable}
+  /api/albums:
+    get:
+      summary: Lister/rechercher les albums
+      parameters:
+        - {name: search, in: query, schema: {type: string}}
+        - {name: series, in: query, schema: {type: string}}
+        - {name: wishlist, in: query, schema: {type: string, enum: ['0','1']}}
+        - {name: read, in: query, schema: {type: string, enum: ['0','1']}}
+        - {name: limit, in: query, schema: {type: integer, maximum: 500}}
+        - {name: offset, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: OK}
+    post:
+      summary: Ajouter un album
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [series, title]
+              properties:
+                isbn: {type: [string, 'null']}
+                series: {type: string}
+                number: {type: [string, 'null']}
+                title: {type: string}
+                publisher: {type: [string, 'null']}
+                purchasePrice: {type: [number, 'null']}
+      responses:
+        '201': {description: Créé}
+  /api/albums/{id}:
+    get:
+      summary: Lire une fiche
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: OK}
+        '404': {description: Introuvable}
+    patch:
+      summary: Modifier une fiche
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses: {'200': {description: OK}}
+    delete:
+      summary: Supprimer une fiche
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Supprimé}
+        '404': {description: Introuvable}
+  /api/discover:
+    get:
+      summary: Recherche multi-source manuelle par ISBN
+      parameters:
+        - {name: isbn, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Candidats de métadonnées}
+        '400': {description: ISBN invalide}
+  /api/export/collection.json:
+    get:
+      summary: Export JSON gratuit
+      responses: {'200': {description: Fichier JSON}}
+  /api/metadata/{id}/enrich:
+    post:
+      summary: Enrichir automatiquement une fiche (Premium)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Fiche enrichie}
+        '402': {description: Premium requis}
+  /api/import/bdgest:
+    post:
+      summary: Import massif BDGest CSV (Premium)
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: {type: string}
+      responses:
+        '200': {description: Rapport d'import}
+        '402': {description: Premium requis}
+  /api/keys:
+    get:
+      summary: Lister les clés API (Premium)
+      responses:
+        '200': {description: Clés sans secret}
+        '402': {description: Premium requis}
+    post:
+      summary: Créer une clé API (Premium)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {name: {type: string}}
+      responses:
+        '201': {description: Clé affichée une seule fois}
+        '402': {description: Premium requis}
+  /api/keys/{id}:
+    delete:
+      summary: Révoquer une clé API
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses: {'200': {description: Révoquée}}
+  /api/webhooks:
+    get:
+      summary: Lister les webhooks Premium
+      responses: {'200': {description: OK}}
+    post:
+      summary: Créer un webhook Premium
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                name: {type: string}
+                url: {type: string, format: uri}
+                events:
+                  type: array
+                  items: {type: string}
+      responses: {'201': {description: Créé}}
+  /api/webhooks/{id}:
+    patch:
+      summary: Modifier un webhook
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses: {'200': {description: OK}}
+    delete:
+      summary: Supprimer un webhook
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses: {'200': {description: Supprimé}}
+  /api/v1/collection:
+    get:
+      summary: API machine de collection
+      security: [{ApiKeyBearer: []}]
+      responses:
+        '200': {description: Collection}
+        '401': {description: Premium + clé requise}
+  /mcp:
+    post:
+      summary: Endpoint MCP stateless 2026-07-28
+      security: [{ApiKeyBearer: []}]
+      parameters:
+        - {name: MCP-Protocol-Version, in: header, required: true, schema: {type: string, const: '2026-07-28'}}
+        - {name: Mcp-Method, in: header, required: true, schema: {type: string}}
+        - {name: Mcp-Name, in: header, required: false, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200': {description: JSON-RPC result}
+        '400': {description: Erreur protocole/header}
+        '401': {description: Authentification requise}
+        '403': {description: Origin non autorisée}
+        '404': {description: Méthode JSON-RPC inconnue}

@@ -1,0 +1,21 @@
+services:
+  bd-desk:
+    build: .
+    container_name: bd-desk
+    restart: unless-stopped
+    ports:
+      - "3096:3096"
+    environment:
+      NODE_ENV: production
+      PORT: 3096
+      HOST: 0.0.0.0
+      BD_DESK_DB: /data/bd-desk.db
+      BD_DESK_LICENSE_SECRET: ${BD_DESK_LICENSE_SECRET:?BD_DESK_LICENSE_SECRET is required}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:?WEBHOOK_SIGNING_SECRET is required}
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      BD_DESK_ALLOWED_ORIGINS: ${BD_DESK_ALLOWED_ORIGINS:-}
+    volumes:
+      - bd_desk_data:/data
+volumes:
+  bd_desk_data:
+name: bd-desk
