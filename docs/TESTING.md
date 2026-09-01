@@ -13,7 +13,7 @@ Le seuil CI impose :
 - fonctions ≥ 90 % ;
 - branches ≥ 70 %.
 
-La couverture observée lors de la préparation v1 est supérieure à 98 % sur les lignes du cœur serveur et supérieure à 95 % sur les fonctions.
+La couverture observée lors de la préparation v1 est supérieure à 98 % sur les lignes du cœur serveur et supérieure à 94 % sur les fonctions.
 
 ## Périmètre des tests
 
@@ -44,4 +44,4 @@ Les appels réseau sont testables via :
 npm run test:external -- 9782203237766
 ```
 
-La CI contient un job hebdomadaire qui appelle Google Books, Open Library et BnF SRU. Les tests locaux standards utilisent des doubles réseau afin de rester déterministes.
+La CI contient un job hebdomadaire qui appelle Google Books, Open Library et BnF SRU. Les tests locaux standards utilisent des doubles réseau afin de rester déterministes. Google Books peut répondre HTTP 429 depuis une IP CI partagée sans clé ; ce cas est signalé `DEGRADED` et devient bloquant en mode strict (`STRICT_EXTERNAL_APIS=1`) ou lorsqu'une clé est configurée.
