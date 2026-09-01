@@ -1,0 +1,73 @@
+name: Deploy preview to alwaysdata
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'src/**'
+      - 'tests/fixtures/**'
+      - 'deploy/**'
+      - 'package.json'
+      - '.github/workflows/deploy-alwaysdata.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: alwaysdata-preview
+  cancel-in-progress: true
+
+env:
+  ALWAYSDATA_HOST: ssh-tatoune.alwaysdata.net
+  ALWAYSDATA_USER: tatoune
+  ALWAYSDATA_TARGET: /home/tatoune/www/bd-desk
+  PREVIEW_URL: https://tatoune.alwaysdata.net
+  ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deployment not configured yet
+        if: env.ALWAYSDATA_PASSWORD == ''
+        run: |
+          echo '::notice::Add the repository secret ALWAYSDATA_PASSWORD to enable automatic deployment to alwaysdata.'
+          echo 'The workflow is ready; no deployment was attempted.'
+
+      - name: Install SSH deployment tools
+        if: env.ALWAYSDATA_PASSWORD != ''
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass rsync
+
+      - name: Trust alwaysdata SSH host
+        if: env.ALWAYSDATA_PASSWORD != ''
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$ALWAYSDATA_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync BD Desk preview
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+        run: |
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET' /home/tatoune/data"
+          sshpass -e rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.env' \
+            --exclude 'data/' \
+            --exclude 'coverage/' \
+            ./ "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "chmod +x '$ALWAYSDATA_TARGET/deploy/alwaysdata-start.sh'"
+
+      - name: Preview smoke check
+        if: env.ALWAYSDATA_PASSWORD != ''
+        run: |
+          if curl -fsS --retry 3 --retry-delay 2 "$PREVIEW_URL/api/health"; then
+            echo
+            echo "Preview reachable: $PREVIEW_URL"
+          else
+            echo '::warning::Files were deployed, but the alwaysdata Node.js site is not serving BD Desk yet. Configure the site command once as documented in docs/DEPLOYMENT-ALWAYSDATA.md.'
+          fi
