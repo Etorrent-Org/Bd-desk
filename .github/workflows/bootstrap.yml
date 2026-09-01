@@ -1,0 +1,30 @@
+name: Bootstrap BD Desk
+
+on:
+  push:
+    paths:
+      - '.bootstrap/**'
+      - '.github/workflows/bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand source bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/bundle.part.* | base64 -d > /tmp/bd-desk.tar.gz
+          mkdir -p /tmp/bd-desk
+          tar -xzf /tmp/bd-desk.tar.gz -C /tmp/bd-desk --strip-components=1
+          rsync -a --delete --exclude='.git/' /tmp/bd-desk/ ./
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'feat: publish BD Desk v1.0.0'
+          git push origin HEAD:main
