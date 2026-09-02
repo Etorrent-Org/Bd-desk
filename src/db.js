@@ -101,14 +101,14 @@ export function listAlbums(db, {search='',limit=60,offset=0,series=null,wishlist
 export function getAlbum(db,id) { return db.prepare('SELECT * FROM albums WHERE id=?').get(id); }
 
 export function createAlbum(db,a) {
-  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,a.coverUrl||openLibraryCover(a.isbn),a.source||'manual');
+  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,a.coverUrl||openLibraryCover(a.isbn),a.source||'manual');
   db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('album_created',r.lastInsertRowid,JSON.stringify({title:a.title}));
   return getAlbum(db,r.lastInsertRowid);
 }
 
 export function updateAlbum(db,id,patch) {
-  const allowed={title:'title',series:'series',number:'number',publisher:'publisher',writer:'writer',artist:'artist',read:'read',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',marketValue:'market_value',purchasePrice:'purchase_price',coverUrl:'cover_url',description:'description',comment:'comment'};
+  const allowed={title:'title',series:'series',number:'number',publisher:'publisher',collectionName:'collection_name',writer:'writer',artist:'artist',read:'read',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',marketValue:'market_value',purchasePrice:'purchase_price',coverUrl:'cover_url',description:'description',comment:'comment'};
   const sets=[],vals=[];
   for (const [k,col] of Object.entries(allowed)) if (k in patch) { sets.push(`${col}=?`); vals.push(['read','wishlist','forSale','firstEdition'].includes(k)?(patch[k]?1:0):patch[k]); }
   if (!sets.length) return getAlbum(db,id);
