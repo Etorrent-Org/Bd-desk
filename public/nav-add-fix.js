@@ -1,5 +1,5 @@
 (()=>{
-  window.__BD_ADD_FLOW_VERSION='2026-09-02.3';
+  window.__BD_ADD_FLOW_VERSION='2026-09-02.4';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast=message=>{
     const t=document.getElementById('toast');
@@ -27,7 +27,7 @@
     const modal=document.getElementById('modal');
     if(!modal)return;
     let discoveredMeta=null,lookupToken=0,lookupTimer=null;
-    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button><button type="button" class="btn" id="mobileAddLookup">Rechercher</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small><small class="muted" style="font-size:10px">Flux ISBN v2026.09.02.3</small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Collection</label><input name="collectionName" id="addCollection"></div><div class="field wide"><label>Auteur(s)</label><input name="writer" id="addAuthors" placeholder="Nom ; Nom"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
+    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button><button type="button" class="btn" id="mobileAddLookup">Rechercher</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small><small class="muted" style="font-size:10px">Flux ISBN v2026.09.02.4</small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Collection</label><input name="collectionName" id="addCollection"></div><div class="field wide"><label>Auteur(s)</label><input name="writer" id="addAuthors" placeholder="Nom ; Nom"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
     modal.classList.remove('hidden');
     const isbnInput=document.getElementById('addIsbn'),status=document.getElementById('isbnLookupStatus');
     const lookup=async()=>{
@@ -46,7 +46,7 @@
         const series=choose(candidates,'series',['bnf-intermarc','bnf','google-books','open-library']);
         const seriesNumber=choose(candidates,'seriesNumber',['bnf-intermarc','google-books','open-library','bnf']);
         const collection=choose(candidates,'collection',['bnf-intermarc','bnf']);
-        const authors=choose(candidates,'authors',['bnf','bnf-intermarc','google-books','open-library']);
+        const authors=choose(candidates,'authors',['bnf-intermarc','bnf','google-books','open-library']);
         const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
         discoveredMeta={title,publisher,series,seriesNumber,collection,authors,coverUrl,source:'isbn-discover'};
         const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries'),numberInput=document.getElementById('addNumber'),collectionInput=document.getElementById('addCollection'),authorsInput=document.getElementById('addAuthors');
@@ -94,7 +94,16 @@
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     };
   }
+  window.BDDeskOpenAdd=openAdd;
   document.addEventListener('click',e=>{
+    const candidate=e.target.closest?.('[data-add-candidate]');
+    if(candidate){
+      const isbn=String(document.getElementById('discoverIsbn')?.value||'').replace(/[^0-9Xx]/g,'');
+      if([10,13].includes(isbn.length)){
+        e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+        openAdd(isbn);return;
+      }
+    }
     const button=e.target.closest?.('[data-route="add"]');
     if(!button)return;
     e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
