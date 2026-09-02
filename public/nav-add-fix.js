@@ -12,7 +12,7 @@
       await new Promise((resolve,reject)=>{
         const existing=document.querySelector('script[data-bd-scanner-loader]');
         if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}
-        const s=document.createElement('script');s.dataset.bdScannerLoader='1';s.src='/ean-scanner.js?v=20260901-4';s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+        const s=document.createElement('script');s.dataset.bdScannerLoader='1';s.src='/ean-scanner.js?v=20260902-1';s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
       });
       if(window.BDDeskScanner?.open)window.BDDeskScanner.open('add');
       else toast('Scanner caméra indisponible');
@@ -57,9 +57,20 @@
           : `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier si la source ne les fournit pas.`;
       }catch(e){if(token===lookupToken){status.textContent=e.message||'Recherche de métadonnées impossible';discoveredMeta=null;}}
     };
+    const lookupScannedCode=code=>{
+      const value=String(code||'').replace(/[^0-9Xx]/g,'');
+      if(![10,13].includes(value.length))return;
+      isbnInput.value=value;
+      clearTimeout(lookupTimer);
+      lookupTimer=null;
+      void lookup();
+      isbnInput.focus();
+    };
+    window.BDDeskAddLookup=lookupScannedCode;
+    const cleanup=()=>{if(window.BDDeskAddLookup===lookupScannedCode)delete window.BDDeskAddLookup;};
     isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(lookup,220)});
     if(isbn){lookupTimer=setTimeout(lookup,80)}
-    document.getElementById('mobileAddCancel').onclick=()=>modal.classList.add('hidden');
+    document.getElementById('mobileAddCancel').onclick=()=>{cleanup();modal.classList.add('hidden')};
     document.getElementById('mobileAddScan').onclick=openCameraScanner;
     document.getElementById('mobileAddForm').onsubmit=async e=>{
       e.preventDefault();
@@ -70,7 +81,7 @@
       const r=await fetch('/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
       const body=await r.json().catch(()=>({}));
       if(!r.ok){toast(body.error||'Impossible d’ajouter cet album');return;}
-      modal.classList.add('hidden');
+      cleanup();modal.classList.add('hidden');
       toast('Album ajouté à la collection');
       location.hash='#collection';
       window.dispatchEvent(new HashChangeEvent('hashchange'));
