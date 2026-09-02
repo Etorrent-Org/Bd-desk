@@ -1,5 +1,5 @@
 (()=>{
-  window.__BD_EAN_SCANNER_VERSION='2026-09-01.4';
+  window.__BD_EAN_SCANNER_VERSION='2026-09-02.1';
 
   const L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
   const G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
@@ -73,6 +73,7 @@
   function deliver(code,origin){
     closeScanner();
     if(origin==='add'){
+      if(typeof window.BDDeskAddLookup==='function'){window.BDDeskAddLookup(code);return;}
       const input=document.getElementById('addIsbn');if(input){input.value=code;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus()}
     }else if(origin==='discover'){
       const input=document.getElementById('discoverIsbn');if(input){input.value=code;input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('discoverBtn')?.click()}
