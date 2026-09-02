@@ -1,4 +1,5 @@
 (()=>{
+  window.__BD_ADD_FLOW_VERSION='2026-09-02.2';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast=message=>{
     const t=document.getElementById('toast');
@@ -26,15 +27,15 @@
     const modal=document.getElementById('modal');
     if(!modal)return;
     let discoveredMeta=null,lookupToken=0,lookupTimer=null;
-    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
+    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button><button type="button" class="btn" id="mobileAddLookup">Rechercher</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small><small class="muted" style="font-size:10px">Flux ISBN v2026.09.02.2</small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
     modal.classList.remove('hidden');
     const isbnInput=document.getElementById('addIsbn'),status=document.getElementById('isbnLookupStatus');
     const lookup=async()=>{
       const value=isbnInput.value.replace(/[^0-9Xx]/g,'');
-      if(![10,13].includes(value.length)){status.textContent='';discoveredMeta=null;return;}
-      const token=++lookupToken;status.textContent='Recherche Google Books, Open Library et BnF…';
+      if(![10,13].includes(value.length)){status.textContent='Saisissez ou scannez un ISBN/EAN valide.';discoveredMeta=null;return;}
+      const token=++lookupToken;status.textContent='Recherche BnF, Google Books et Open Library…';
       try{
-        const r=await fetch('/api/discover?isbn='+encodeURIComponent(value));
+        const r=await fetch('/api/discover?isbn='+encodeURIComponent(value),{cache:'no-store'});
         const body=await r.json().catch(()=>({}));
         if(token!==lookupToken)return;
         if(!r.ok)throw new Error(body.error||'Recherche impossible');
@@ -47,29 +48,31 @@
         const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
         discoveredMeta={title,publisher,series,seriesNumber,coverUrl,source:'isbn-discover'};
         const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries'),numberInput=document.getElementById('addNumber');
-        if(title&&!titleInput.value)titleInput.value=title;
-        if(publisher&&!publisherInput.value)publisherInput.value=publisher;
+        if(title)titleInput.value=title;
+        if(publisher)publisherInput.value=publisher;
         if(series&&!seriesInput.value)seriesInput.value=Array.isArray(series)?series[0]:series;
         if(seriesNumber&&!numberInput.value)numberInput.value=seriesNumber;
         const sources=[...new Set(candidates.map(c=>c.source).filter(Boolean))].map(s=>s==='google-books'?'Google Books':s==='open-library'?'Open Library':s==='bnf'?'BnF':s);
         status.textContent=series&&seriesNumber
           ? `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et tome détectés — vérifiez avant ajout.`
-          : `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier si la source ne les fournit pas.`;
-      }catch(e){if(token===lookupToken){status.textContent=e.message||'Recherche de métadonnées impossible';discoveredMeta=null;}}
+          : `Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}. Série et Tome restent à vérifier.`;
+      }catch(e){if(token===lookupToken){status.textContent='Erreur : '+(e.message||'recherche de métadonnées impossible');discoveredMeta=null;}}
     };
     const lookupScannedCode=code=>{
       const value=String(code||'').replace(/[^0-9Xx]/g,'');
-      if(![10,13].includes(value.length))return;
+      if(![10,13].includes(value.length)){status.textContent='EAN scanné invalide.';return;}
       isbnInput.value=value;
+      status.textContent='EAN scanné · lancement de la recherche…';
       clearTimeout(lookupTimer);
-      lookupTimer=null;
-      void lookup();
+      lookupTimer=setTimeout(()=>void lookup(),30);
       isbnInput.focus();
     };
     window.BDDeskAddLookup=lookupScannedCode;
     const cleanup=()=>{if(window.BDDeskAddLookup===lookupScannedCode)delete window.BDDeskAddLookup;};
-    isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(lookup,220)});
-    if(isbn){lookupTimer=setTimeout(lookup,80)}
+    isbnInput.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(()=>void lookup(),220)});
+    isbnInput.addEventListener('change',()=>{clearTimeout(lookupTimer);lookupTimer=setTimeout(()=>void lookup(),30)});
+    if(isbn){lookupTimer=setTimeout(()=>void lookup(),80)}
+    document.getElementById('mobileAddLookup').onclick=()=>void lookup();
     document.getElementById('mobileAddCancel').onclick=()=>{cleanup();modal.classList.add('hidden')};
     document.getElementById('mobileAddScan').onclick=openCameraScanner;
     document.getElementById('mobileAddForm').onsubmit=async e=>{
