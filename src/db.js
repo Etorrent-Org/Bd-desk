@@ -68,7 +68,6 @@ export function importBdgest(db, text) {
         stmt.run(a.bdgestId,a.isbn,a.series,a.number,a.numberAlt,a.title,a.publisher,a.collection,a.firstEdition,a.legalDeposit,a.printDate,a.marketValue,a.condition,toIsoDate(a.purchaseDate)||a.purchaseDate,a.purchasePrice,a.note,a.writer,a.artist,a.wishlist,a.forSale,a.format,a.followed,a.read,toIsoDate(a.readDate)||a.readDate,a.signed,toIsoDate(a.signedDate)||a.signedDate,a.comment,a.tableName,openLibraryCover(a.isbn),a.source);
         imported++;
       } catch (e) {
-        // Keep importing the remaining rows and expose malformed records in the report.
         skipped++;
         errors.push({bdgestId:a.bdgestId||null,isbn:a.isbn||null,error:String(e?.message||e)});
       }
@@ -101,16 +100,26 @@ export function listAlbums(db, {search='',limit=60,offset=0,series=null,wishlist
 export function getAlbum(db,id) { return db.prepare('SELECT * FROM albums WHERE id=?').get(id); }
 
 export function createAlbum(db,a) {
-  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,a.coverUrl||openLibraryCover(a.isbn),a.source||'manual');
+  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,description,print_date,format,condition,purchase_date,comment,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,a.coverUrl||openLibraryCover(a.isbn),a.description||null,a.printDate||a.publishedDate||null,a.format||null,a.condition||null,a.purchaseDate||null,a.comment||null,a.source||'manual');
   db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('album_created',r.lastInsertRowid,JSON.stringify({title:a.title}));
   return getAlbum(db,r.lastInsertRowid);
 }
 
 export function updateAlbum(db,id,patch) {
-  const allowed={title:'title',series:'series',number:'number',publisher:'publisher',collectionName:'collection_name',writer:'writer',artist:'artist',read:'read',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',marketValue:'market_value',purchasePrice:'purchase_price',coverUrl:'cover_url',description:'description',comment:'comment'};
+  const allowed={
+    isbn:'isbn',title:'title',series:'series',number:'number',numberAlt:'number_alt',publisher:'publisher',collectionName:'collection_name',
+    writer:'writer',artist:'artist',read:'read',readDate:'read_date',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',
+    marketValue:'market_value',purchasePrice:'purchase_price',purchaseDate:'purchase_date',condition:'condition',note:'note',format:'format',
+    signed:'signed',signedDate:'signed_date',legalDeposit:'legal_deposit',printDate:'print_date',coverUrl:'cover_url',description:'description',
+    comment:'comment',source:'source'
+  };
+  const booleanFields=new Set(['read','wishlist','forSale','firstEdition','signed']);
   const sets=[],vals=[];
-  for (const [k,col] of Object.entries(allowed)) if (k in patch) { sets.push(`${col}=?`); vals.push(['read','wishlist','forSale','firstEdition'].includes(k)?(patch[k]?1:0):patch[k]); }
+  for (const [k,col] of Object.entries(allowed)) if (k in patch) {
+    sets.push(`${col}=?`);
+    vals.push(booleanFields.has(k)?(patch[k]?1:0):patch[k]);
+  }
   if (!sets.length) return getAlbum(db,id);
   sets.push('updated_at=CURRENT_TIMESTAMP');
   db.prepare(`UPDATE albums SET ${sets.join(',')} WHERE id=?`).run(...vals,id);
