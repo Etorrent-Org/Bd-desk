@@ -22,8 +22,8 @@ env:
   ALWAYSDATA_TARGET: /home/tatoune/www/bd-desk
   ALWAYSDATA_SITE_HOST: tatoune.alwaysdata.net
   PREVIEW_URL: https://tatoune.alwaysdata.net
-  ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD }}
-  ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY }}
+  ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
+  ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY || vars.ALWAYSDATA_API_KEY }}
 
 jobs:
   deploy:
@@ -35,7 +35,7 @@ jobs:
       - name: Deployment not configured yet
         if: env.ALWAYSDATA_PASSWORD == ''
         run: |
-          echo '::error::Repository secret ALWAYSDATA_PASSWORD is missing.'
+          echo '::error::ALWAYSDATA_PASSWORD is unavailable to this workflow. Configure it as a repository/organization Actions secret or variable with access to this repository.'
           exit 1
 
       - name: Install SSH deployment tools
@@ -53,7 +53,7 @@ jobs:
       - name: Sync BD Desk preview
         if: env.ALWAYSDATA_PASSWORD != ''
         env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
         run: |
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET' /home/tatoune/data"
           sshpass -e rsync -az --delete \
@@ -67,7 +67,7 @@ jobs:
       - name: Verify normalized metadata source deployed
         if: env.ALWAYSDATA_PASSWORD != ''
         env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD }}
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
         run: |
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"return 'Glénat';\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
@@ -75,7 +75,7 @@ jobs:
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
         run: |
-          echo '::error::Repository secret ALWAYSDATA_API_KEY is required to restart the HTTP site after deployment.'
+          echo '::error::ALWAYSDATA_API_KEY is unavailable to this workflow. Configure it as a repository/organization Actions secret or variable with access to this repository.'
           exit 1
 
       - name: Discover and restart alwaysdata HTTP site
