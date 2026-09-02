@@ -1,5 +1,5 @@
 (()=>{
-  window.__BD_ADD_FLOW_VERSION='2026-09-02.4';
+  window.__BD_ADD_FLOW_VERSION='2026-09-02.5';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast=message=>{
     const t=document.getElementById('toast');
@@ -20,14 +20,25 @@
     }catch{toast('Impossible de charger le scanner caméra');}
   }
   function choose(candidates,field,order=['bnf','bnf-intermarc','google-books','open-library']){
-    for(const source of order){const c=candidates.find(x=>x.source===source&&x[field]);if(c)return c[field]}
+    for(const source of order){const c=candidates.find(x=>x.source===source&&x[field]!=null&&x[field]!=='');if(c)return c[field]}
     return null;
+  }
+  function mergeDiscovered(candidates){
+    return {
+      title:choose(candidates,'title',['bnf','bnf-intermarc','google-books','open-library']),
+      publisher:choose(candidates,'publisher',['bnf','google-books','open-library']),
+      series:choose(candidates,'series',['bnf-intermarc','bnf','google-books','open-library']),
+      seriesNumber:choose(candidates,'seriesNumber',['bnf-intermarc','google-books','open-library','bnf']),
+      collection:choose(candidates,'collection',['bnf','bnf-intermarc']),
+      authors:choose(candidates,'authors',['bnf-intermarc','bnf','google-books','open-library']),
+      coverUrl:choose(candidates,'coverUrl',['google-books','open-library'])
+    };
   }
   function openAdd(isbn=''){
     const modal=document.getElementById('modal');
     if(!modal)return;
     let discoveredMeta=null,lookupToken=0,lookupTimer=null;
-    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button><button type="button" class="btn" id="mobileAddLookup">Rechercher</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small><small class="muted" style="font-size:10px">Flux ISBN v2026.09.02.4</small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Collection</label><input name="collectionName" id="addCollection"></div><div class="field wide"><label>Auteur(s)</label><input name="writer" id="addAuthors" placeholder="Nom ; Nom"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
+    modal.innerHTML=`<div class="modal-card add-album-modal"><h2>Ajouter un album</h2><p class="muted">Ajout manuel, avec recherche automatique après scan ISBN/EAN.</p><form id="mobileAddForm"><div class="form-grid"><div class="field wide"><label>ISBN / EAN</label><div class="input-action"><input name="isbn" id="addIsbn" inputmode="numeric" value="${esc(isbn)}" placeholder="978…"><button type="button" class="btn" id="mobileAddScan">Scanner</button><button type="button" class="btn" id="mobileAddLookup">Rechercher</button></div><small id="isbnLookupStatus" class="muted" style="min-height:1.25em"></small><small class="muted" style="font-size:10px">Flux ISBN v2026.09.02.5</small></div><div class="field"><label>Série</label><input name="series" id="addSeries" required></div><div class="field"><label>Tome</label><input name="number" id="addNumber"></div><div class="field wide"><label>Titre</label><input name="title" id="addTitle" required></div><div class="field"><label>Éditeur</label><input name="publisher" id="addPublisher"></div><div class="field"><label>Collection</label><input name="collectionName" id="addCollection"></div><div class="field wide"><label>Auteur(s)</label><input name="writer" id="addAuthors" placeholder="Nom ; Nom"></div><div class="field"><label>Prix d’achat (€)</label><input name="purchasePrice" type="number" step="0.01"></div></div><div class="modal-actions"><button type="button" class="btn" id="mobileAddCancel">Annuler</button><button class="btn primary">Ajouter à ma collection</button></div></form></div>`;
     modal.classList.remove('hidden');
     const isbnInput=document.getElementById('addIsbn'),status=document.getElementById('isbnLookupStatus');
     const lookup=async()=>{
@@ -41,25 +52,23 @@
         if(!r.ok)throw new Error(body.error||'Recherche impossible');
         const candidates=Array.isArray(body.candidates)?body.candidates:[];
         if(!candidates.length){status.textContent='ISBN reconnu, mais aucune métadonnée trouvée. Saisie manuelle possible.';discoveredMeta=null;return;}
-        const title=choose(candidates,'title',['bnf','bnf-intermarc','google-books','open-library']);
-        const publisher=choose(candidates,'publisher',['bnf','google-books','open-library']);
-        const series=choose(candidates,'series',['bnf-intermarc','bnf','google-books','open-library']);
-        const seriesNumber=choose(candidates,'seriesNumber',['bnf-intermarc','google-books','open-library','bnf']);
-        const collection=choose(candidates,'collection',['bnf-intermarc','bnf']);
-        const authors=choose(candidates,'authors',['bnf-intermarc','bnf','google-books','open-library']);
-        const coverUrl=choose(candidates,'coverUrl',['google-books','open-library']);
-        discoveredMeta={title,publisher,series,seriesNumber,collection,authors,coverUrl,source:'isbn-discover'};
+        const merged=mergeDiscovered(candidates);
+        discoveredMeta={...merged,source:'isbn-discover'};
         const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries'),numberInput=document.getElementById('addNumber'),collectionInput=document.getElementById('addCollection'),authorsInput=document.getElementById('addAuthors');
-        if(title)titleInput.value=title;
-        if(publisher)publisherInput.value=publisher;
-        if(series&&!seriesInput.value)seriesInput.value=Array.isArray(series)?series[0]:series;
-        if(seriesNumber&&!numberInput.value)numberInput.value=seriesNumber;
-        if(collection&&!collectionInput.value)collectionInput.value=collection;
-        if(authors&&!authorsInput.value)authorsInput.value=(Array.isArray(authors)?authors:[authors]).join('; ');
+        if(merged.title)titleInput.value=merged.title;
+        if(merged.publisher)publisherInput.value=merged.publisher;
+        if(merged.series)seriesInput.value=Array.isArray(merged.series)?merged.series[0]:merged.series;
+        if(merged.seriesNumber!=null&&merged.seriesNumber!=='')numberInput.value=String(merged.seriesNumber);
+        if(merged.collection)collectionInput.value=merged.collection;
+        if(merged.authors)authorsInput.value=(Array.isArray(merged.authors)?merged.authors:[merged.authors]).join('; ');
         const sourceLabels=candidates.map(c=>c.source==='google-books'?'Google Books':c.source==='open-library'?'Open Library':c.source==='bnf'||c.source==='bnf-intermarc'?'BnF':c.source).filter(Boolean);
         const sources=[...new Set(sourceLabels)];
-        const rich=[];if(series)rich.push('série');if(seriesNumber)rich.push('tome');if(collection)rich.push('collection');if(authors?.length)rich.push('auteur');
-        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}${rich.length?' · '+rich.join(', ')+' détecté'+(rich.length>1?'s':''):''}. Vérifiez avant ajout.`;
+        const detected=[];
+        if(merged.series)detected.push(`Série ${Array.isArray(merged.series)?merged.series[0]:merged.series}`);
+        if(merged.seriesNumber!=null&&merged.seriesNumber!=='')detected.push(`Tome ${merged.seriesNumber}`);
+        if(merged.collection)detected.push(`Collection ${merged.collection}`);
+        if(merged.authors?.length)detected.push('auteur');
+        status.textContent=`Métadonnées trouvées${sources.length?' · '+sources.join(' + '):''}${detected.length?' · '+detected.join(' · '):''}. Vérifiez avant ajout.`;
       }catch(e){if(token===lookupToken){status.textContent='Erreur : '+(e.message||'recherche de métadonnées impossible');discoveredMeta=null;}}
     };
     const lookupScannedCode=code=>{
@@ -104,7 +113,7 @@
         openAdd(isbn);return;
       }
     }
-    const button=e.target.closest?.('[data-route="add"]');
+    const button=e.target.closest?.('[data-route="add"],#homeAdd,#fab');
     if(!button)return;
     e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
     openAdd();
