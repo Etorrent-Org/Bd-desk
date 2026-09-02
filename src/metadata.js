@@ -23,15 +23,23 @@ export function openLibraryUrl(isbn) {
   return u.toString();
 }
 
-export function bnfSruUrl(isbn) {
+function bnfBaseUrl(isbn, recordSchema) {
   const n = canonicalIsbn(isbn);
   const u = new URL('https://catalogue.bnf.fr/api/SRU');
   u.searchParams.set('version', '1.2');
   u.searchParams.set('operation', 'searchRetrieve');
   u.searchParams.set('query', `bib.isbn adj "${n}"`);
-  u.searchParams.set('recordSchema', 'dublincore');
+  u.searchParams.set('recordSchema', recordSchema);
   u.searchParams.set('maximumRecords', '5');
   return u.toString();
+}
+
+export function bnfSruUrl(isbn) {
+  return bnfBaseUrl(isbn, 'dublincore');
+}
+
+export function bnfIntermarcUrl(isbn) {
+  return bnfBaseUrl(isbn, 'intermarcXchange');
 }
 
 function cleanText(value) {
@@ -67,6 +75,15 @@ function extractSeriesInfo(value, allowBareNumber=false) {
     if (bare && bare[1].trim().length > 2) return {series:cleanText(bare[1]), seriesNumber:bare[2].replace(',', '.')};
   }
   return {series:s, seriesNumber:null};
+}
+
+function cleanSeriesNumber(value) {
+  const s=cleanText(value);
+  if (!s) return null;
+  const explicit=s.match(/(?:t(?:ome)?|vol(?:ume)?|n(?:um(?:éro)?)?)[°ºo.]?\s*0*(\d+(?:[.,]\d+)?)/i);
+  if (explicit) return explicit[1].replace(',', '.');
+  const bare=s.match(/^0*(\d+(?:[.,]\d+)?)$/);
+  return bare ? bare[1].replace(',', '.') : s;
 }
 
 function extractStructuredTitle(value) {
@@ -131,16 +148,49 @@ export function parseOpenLibrary(data) {
   }];
 }
 
+function xmlDecode(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .trim();
+}
+
 function xmlTexts(xml, tag) {
   const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'gi');
   const out=[]; let m;
   while ((m=re.exec(String(xml)))) {
-    const value=m[1].replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').trim();
+    const value=xmlDecode(m[1]);
     if(value) out.push(value);
   }
   return out;
 }
 function xmlText(xml, tag) { return xmlTexts(xml, tag)[0] || null; }
+
+function marcFields(xml, tag) {
+  const re=new RegExp(`<(?:[\\w.-]+:)?datafield\\b[^>]*\\btag=["']${tag}["'][^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?datafield>`, 'gi');
+  const out=[]; let m;
+  while((m=re.exec(String(xml)))) out.push(m[1]);
+  return out;
+}
+
+function marcSubfields(field, code) {
+  const re=new RegExp(`<(?:[\\w.-]+:)?subfield\\b[^>]*\\bcode=["']${code}["'][^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?subfield>`, 'gi');
+  const out=[]; let m;
+  while((m=re.exec(String(field)))) {
+    const value=cleanText(xmlDecode(m[1]));
+    if(value) out.push(value);
+  }
+  return out;
+}
+
+function firstMarcSubfield(xml, tag, code) {
+  for(const field of marcFields(xml,tag)) {
+    const value=marcSubfields(field,code)[0];
+    if(value) return value;
+  }
+  return null;
+}
 
 export function parseBnfDublinCore(xml) {
   if (!xml || !String(xml).includes('numberOfRecords')) return [];
@@ -164,20 +214,64 @@ export function parseBnfDublinCore(xml) {
   }];
 }
 
+export function parseBnfIntermarc(xml) {
+  if (!xml || !String(xml).includes('numberOfRecords')) return [];
+  const count=Number(xmlText(xml,'srw:numberOfRecords') || xmlText(xml,'numberOfRecords') || 0);
+  if(!count) return [];
+
+  const title=firstMarcSubfield(xml,'245','a');
+  let series=null, seriesNumber=null;
+  const linkedSeries=marcFields(xml,'460')[0] || null;
+  if(linkedSeries){
+    series=marcSubfields(linkedSeries,'t')[0] || null;
+    seriesNumber=cleanSeriesNumber(marcSubfields(linkedSeries,'v')[0]);
+  }
+  if(!series){
+    const ensemble=marcFields(xml,'290')[0] || null;
+    if(ensemble){
+      series=marcSubfields(ensemble,'a')[0] || null;
+      seriesNumber=seriesNumber || cleanSeriesNumber(marcSubfields(ensemble,'v')[0] || marcSubfields(ensemble,'h')[0]);
+    }
+  }
+
+  let collection=null;
+  const collectionField=marcFields(xml,'295')[0] || null;
+  if(collectionField) collection=marcSubfields(collectionField,'a')[0] || null;
+  if(!collection){
+    const collectionLink=marcFields(xml,'410')[0] || null;
+    if(collectionLink) collection=marcSubfields(collectionLink,'t')[0] || null;
+  }
+
+  const authors=[];
+  for(const code of ['f','g']) for(const value of marcSubfields(marcFields(xml,'245')[0] || '',code)) if(!authors.includes(value)) authors.push(value);
+  const sourceId=xmlText(xml,'recordIdentifier') || firstMarcSubfield(xml,'003','a') || null;
+  if(!title&&!series&&!collection&&!authors.length) return [];
+  return [{source:'bnf-intermarc',sourceId,title,series,seriesNumber,collection,authors}];
+}
+
 export function mergeCandidates(album, candidates) {
   const result = { ...album }, provenance = [];
   const rules = [
-    ['title', ['bnf','google-books','open-library']],
+    ['title', ['bnf','bnf-intermarc','google-books','open-library']],
     ['publisher', ['bnf','google-books','open-library']],
+    ['series', ['bnf-intermarc','bnf','google-books','open-library']],
+    ['number', ['bnf-intermarc','google-books','open-library','bnf'], 'seriesNumber'],
+    ['collectionName', ['bnf-intermarc','bnf'], 'collection'],
     ['publishedDate', ['bnf','google-books','open-library']],
     ['description', ['bnf','google-books']],
-    ['coverUrl', ['google-books']]
+    ['coverUrl', ['google-books','open-library']]
   ];
-  for (const [field, order] of rules) {
+  for (const [field, order, candidateField=field] of rules) {
     if (result[field]) continue;
     for (const source of order) {
-      const c = candidates.find(x => x.source === source && x[field]);
-      if (c) { result[field] = c[field]; provenance.push({field, source, confidence: source === 'bnf' ? .95 : source === 'google-books' ? .85 : .7}); break; }
+      const c = candidates.find(x => x.source === source && x[candidateField]);
+      if (c) { result[field] = c[candidateField]; provenance.push({field, source, confidence: source.startsWith('bnf') ? .95 : source === 'google-books' ? .85 : .7}); break; }
+    }
+  }
+  if(!result.writer){
+    for(const source of ['bnf','bnf-intermarc','google-books','open-library']){
+      const c=candidates.find(x=>x.source===source&&Array.isArray(x.authors)&&x.authors.length);
+      if(c){result.writer=c.authors.join('; ');provenance.push({field:'writer',source,confidence:source.startsWith('bnf')?.9:source==='google-books'?.8:.7});break;}
     }
   }
   if (!result.coverUrl && album.isbn) {
@@ -192,17 +286,19 @@ export async function fetchMetadata(isbn, opts={}) {
   const requests = [
     ['google-books', googleBooksUrl(isbn, opts.googleBooksApiKey)],
     ['open-library', openLibraryUrl(isbn)],
-    ['bnf', bnfSruUrl(isbn)]
+    ['bnf', bnfSruUrl(isbn)],
+    ['bnf-intermarc', bnfIntermarcUrl(isbn)]
   ];
   const out = [];
   for (const [source, url] of requests) {
     try {
       const res = await fetchImpl(url, { headers: {
         'user-agent':'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)',
-        'accept': source === 'bnf' ? 'application/xml,text/xml;q=0.9,*/*;q=0.8' : 'application/json'
+        'accept': source.startsWith('bnf') ? 'application/xml,text/xml;q=0.9,*/*;q=0.8' : 'application/json'
       } });
       if (!res.ok) continue;
       if (source === 'bnf') out.push(...parseBnfDublinCore(await res.text()));
+      else if (source === 'bnf-intermarc') out.push(...parseBnfIntermarc(await res.text()));
       else if (source === 'google-books') out.push(...parseGoogleBooks(await res.json()));
       else out.push(...parseOpenLibrary(await res.json()));
     } catch { /* source failure is isolated */ }
