@@ -98,7 +98,7 @@ jobs:
               https://openapi.bnf.fr/*|https://books.google.com/*|https://books.googleusercontent.com/*|https://images.hachette-livre.fr/*|https://www.images.hachette-livre.fr/*) ;;
               *) continue ;;
             esac
-            curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
+            curl -fsSL --connect-timeout 10 --max-time 45 --retry 3 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
           done < "$COVER_LIST"
           test -s "$COVER_DIR/$SWEET_ID.jpeg"
           echo "Materialized $(find "$COVER_DIR" -type f -name '*.jpeg' | wc -l) trusted cover asset(s)."
