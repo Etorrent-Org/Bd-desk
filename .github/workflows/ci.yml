@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - run: node --check public/adaptive-ui.js && node --check public/detail-enhance.js && node --check public/cover-fallback.js
       - run: npm test
       - run: npm run test:coverage
   external-api-contract:
@@ -34,4 +35,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: test -s public/index.html && test -s public/app.js && test -s public/styles.css
+      - run: test -s public/index.html && test -s public/app.js && test -s public/styles.css && test -s public/adaptive-ui.css && test -s public/adaptive-ui.js
