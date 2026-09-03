@@ -1,6 +1,6 @@
 # BD Desk
 
-**BD Desk** est une application Web/PWA de gestion de collections **BD, comics et manga**. Elle conserve une seule architecture UX et propose quatre habillages visuels : **Neutre**, **BD**, **Comics** et **Manga**.
+**BD Desk** est une application Web/PWA de gestion de collections **BD, comics et manga**. Elle conserve une seule architecture fonctionnelle et propose quatre habillages visuels : **Neutre**, **BD**, **Comics** et **Manga**.
 
 ## Positionnement produit
 
@@ -9,16 +9,31 @@
 - Une fonction Premium n'est jamais seulement masquée dans l'interface : elle est **contrôlée côté serveur** par une licence signée.
 - Les données personnelles du collectionneur ne sont jamais écrasées silencieusement par le moteur de métadonnées.
 
+## Interface adaptative universelle
+
+BD Desk utilise **la même application, les mêmes données et les mêmes fonctionnalités** sur desktop, tablette et smartphone, mais la composition de l'interface s'adapte automatiquement au terminal.
+
+La détection ne repose pas sur le nom du navigateur, `user-agent`, la marque ou le modèle du téléphone. Elle combine **largeur utile du viewport, petit côté de l'écran, pointeur tactile et orientation** afin d'appliquer un mode `phone`, `tablet` ou `desktop`.
+
+Sur smartphone :
+
+- le portrait utilise une vraie interface mobile avec **2 albums par ligne**, header compact, recherche à la demande, actions secondaires regroupées et navigation basse permanente ;
+- le paysage conserve la navigation mobile mais augmente la densité lorsque l'espace horizontal le permet ;
+- les zones tactiles, safe areas iOS/Android, fiches, modales et navigation restent utilisables sans zoom ;
+- les quatre thèmes restent strictement les mêmes fonctionnellement.
+
+Les règles adaptatives sont isolées dans `public/adaptive-ui.js` et `public/adaptive-ui.css` afin de ne pas dupliquer l'application.
+
 ## État courant
 
-- **43/43 tests** automatisés réussis ; les jobs Node.js 22 et 24 sont verts.
-- Couverture CI : **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches**.
+- CI Node.js 22 et 24, couverture et smoke tests sont exécutés à chaque changement.
+- La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
 - Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés**.
 - Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
 - Le suivi QA vivant est tenu dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
-- **Campagne QA matérielle iOS en cours** : iPad + iPhone, Safari puis PWA, exécutée test par test dans l'ordre `QA-IOS-001` à `QA-IOS-020`.
+- **Campagne QA matérielle iOS en cours** : iPad + iPhone, navigateur réel puis PWA, exécutée test par test dans l'ordre `QA-IOS-001` à `QA-IOS-020`.
 
 ## Preview iOS — iPad et iPhone
 
@@ -30,7 +45,7 @@ Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements ve
 
 La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
 
-La validation réelle est menée sur **iPad et iPhone**, d'abord dans Safari, puis comme PWA installée sur l'écran d'accueil. Les résultats sont enregistrés au fur et à mesure dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
+La validation réelle est menée sur **iPad et iPhone**, d'abord dans un navigateur réel, puis comme PWA installée sur l'écran d'accueil. Les résultats sont enregistrés au fur et à mesure dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 
 Voir [Test iOS / PWA](docs/DEPLOYMENT-IPAD.md) et [Déploiement alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md).
 
@@ -100,7 +115,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 
 ```text
 src/                    serveur, données, licence, MCP, métadonnées
-public/                 PWA et design system
+public/                 PWA, design system et adaptation responsive universelle
 scripts/                seed, validation, licences, tests API externes
 tests/                  tests automatisés et fixtures synthétiques
 deploy/                 lanceurs d'environnements de preview
