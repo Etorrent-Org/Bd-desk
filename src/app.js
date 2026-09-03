@@ -12,7 +12,7 @@ import { dispatchWebhook } from './webhooks.js';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.resolve(__dirname,'../public');
-const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
+const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.jpeg':'image/jpeg','.jpg':'image/jpeg','.png':'image/png','.webp':'image/webp','.webmanifest':'application/manifest+json'};
 
 function json(res,status,data,headers={}){ res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}); res.end(JSON.stringify(data)); }
 function text(res,status,data,type='text/plain; charset=utf-8'){ res.writeHead(status,{'content-type':type}); res.end(data); }

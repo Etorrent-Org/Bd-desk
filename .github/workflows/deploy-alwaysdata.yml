@@ -184,8 +184,8 @@ jobs:
             -D /tmp/bd-desk-cover-headers \
             "$PREVIEW_URL/covers/$ALBUM_ID.jpeg?v=${GITHUB_SHA}" \
             -o /tmp/bd-desk-cover-image
-          grep -i '^content-type: image/' /tmp/bd-desk-cover-headers >/dev/null
           test -s /tmp/bd-desk-cover-image
+          file -b --mime-type /tmp/bd-desk-cover-image | grep -E '^image/(jpeg|png|webp)$' >/dev/null
           echo "Live trusted cover asset verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
 
       - name: Verify same-origin cover proxy when process is restarted
