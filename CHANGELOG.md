@@ -12,13 +12,14 @@
 - Nouvelle couche `adaptive-ui.js` / `adaptive-ui.css` : détection `phone / tablet / desktop` par viewport, taille d'écran, capacités tactiles et orientation, **sans sniffing user-agent**.
 - Smartphone portrait : header compact, recherche à la demande, actions secondaires regroupées, navigation basse permanente et collection en **2 colonnes**.
 - Smartphone paysage : densité adaptée tout en conservant la navigation mobile.
-- Nouvelle branche `feat/catalog-ui-refresh` créée depuis le dernier état validé de `main` afin d'isoler la refonte de densité et de permettre un retour arrière immédiat.
+- Branche `feat/catalog-ui-refresh` créée depuis le dernier état validé de `main` afin d'isoler la refonte de densité et de permettre un retour arrière immédiat.
 - Nouvelle couche `catalog-ui.css` : bibliothèque visuelle dense inspirée du principe de catalogue de BDGest Online sans en copier l'identité graphique.
 - Nouvelle matrice de grille : smartphone portrait 2 colonnes compactes avec objectif 2 × 2 visible, smartphone paysage 4 colonnes, tablette 4/5 colonnes, desktop généralement 6 à 8 couvertures.
 - Filtres de collection rendus plus compacts et sticky ; informations secondaires réduites sur smartphone pour privilégier les couvertures.
 - KPI d'accueil compactés et derniers ajouts alignés sur le même langage de grille que la collection.
 - Cache PWA incrémenté en `bd-desk-v24` et CI étendue à `catalog-ui.css`.
 - Ajout de `docs/UI-CATALOG.md` et harmonisation README / architecture / QA avec cette direction 2026.
+- **PR #1 fusionnée dans `main`** (`3d213285`) après CI Node 22/24 et smoke tests verts ; **Deploy #87 réussi** avec synchro SSH, `/api/health` et contrôle live des métadonnées validés.
 
 ## 1.0.1 — 2026-09-02
 
