@@ -26,7 +26,7 @@ Les règles adaptatives sont isolées dans `public/adaptive-ui.js` et `public/ad
 
 ## Catalogue visuel 2026
 
-La grille de collection évolue vers une logique de **bibliothèque visuelle dense** : on conserve l'idée efficace des gestionnaires BD historiques — parcourir rapidement beaucoup de couvertures — sans reprendre leur identité graphique ni leur mise en page.
+La grille de collection suit une logique de **bibliothèque visuelle dense** : on conserve l'idée efficace des gestionnaires BD historiques — parcourir rapidement beaucoup de couvertures — sans reprendre leur identité graphique ni leur mise en page.
 
 La couche `public/catalog-ui.css` ajoute :
 
@@ -38,12 +38,13 @@ La couche `public/catalog-ui.css` ajoute :
 - métadonnées réduites sous les couvertures pour favoriser la densité ;
 - KPI d'accueil plus compacts et derniers ajouts alignés sur le même langage de grille.
 
-Cette refonte est développée dans `feat/catalog-ui-refresh` avant fusion dans `main`. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
+Cette refonte a été fusionnée via **PR #1** dans `main` et déployée sur la preview alwaysdata avec le **Deploy #87**. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
 
 ## État courant
 
 - CI Node.js 22 et 24, couverture et smoke tests sont exécutés à chaque changement.
 - La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
+- **Catalogue visuel 2026 sur `main`** : CI #149 verte, PR #1 fusionnée, Deploy #87 validé.
 - Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** sur `main`.
 - Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
