@@ -14,6 +14,17 @@ test('experience v3 est branchée après les couches visuelles legacy',async()=>
   assert.match(html,/Collection studio/);
 });
 
+test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne couverture',async()=>{
+  const html=await read('public/index.html');
+  const sw=await read('public/sw.js');
+  const app=await read('public/app.js');
+  assert.match(html,/bd-desk-build" content="2026\.09\.03\.7"/);
+  assert.match(app,/sw\.js\?v=20260903-7/);
+  assert.match(app,/updateViaCache:'none'/);
+  assert.match(sw,/bd-desk-v30/);
+  assert.match(sw,/app\.js\?v=20260903-7/);
+});
+
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
   const css=await read('public/experience-v3.css');
   for(const theme of ['neutral','bd','comics','manga'])assert.match(css,new RegExp('data-theme="' + theme + '"'));
