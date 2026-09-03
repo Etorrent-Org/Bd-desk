@@ -102,6 +102,10 @@ jobs:
           PORT="$3"
           PIDS="$({
             ps -eo user=,pid=,args= | awk -v user="$ACCOUNT_USER" -v target="$TARGET" '$1 == user && $0 ~ /[n]ode/ && (index($0,target) || $0 ~ /src\/server[.]js/) { print $2 }'
+            if command -v pgrep >/dev/null 2>&1; then
+              pgrep -u "$ACCOUNT_USER" -f 'server[.]js' || true
+              pgrep -u "$ACCOUNT_USER" -f 'alwaysdata-start[.]sh' || true
+            fi
             if command -v lsof >/dev/null 2>&1; then
               lsof -t -n -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
             fi
@@ -114,7 +118,7 @@ jobs:
             kill -TERM $PIDS 2>/dev/null || true
             sleep 3
           else
-            echo 'No BD Desk Node process found by path or port; continuing with the AlwaysData supervisor.'
+            echo 'No BD Desk Node process found by path, server command, or port; continuing with the AlwaysData supervisor.'
           fi
           REMOTE
 
