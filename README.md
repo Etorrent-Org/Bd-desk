@@ -9,22 +9,25 @@
 - Une fonction Premium n'est jamais seulement masquée dans l'interface : elle est **contrôlée côté serveur** par une licence signée.
 - Les données personnelles du collectionneur ne sont jamais écrasées silencieusement par le moteur de métadonnées.
 
-## État v1.0
+## État courant
 
-- **36/36 tests** automatisés réussis sous Node.js 22 et 24.
-- Couverture CI actuelle du cœur serveur : **98,69 % lignes**, **91,95 % fonctions**, **70,61 % branches**.
-- Live QA : **Open Library HTTP 200**, **BnF SRU HTTP 200**, Google Books appelé mais limité en CI par un **HTTP 429 de quota anonyme** ; une clé Google Books lève cette limite.
-- Build Docker et smoke test réel `/api/health` : **OK**.
+- **43/43 tests** automatisés réussis sous Node.js 22 ; les jobs Node.js 22 et 24 sont verts dans la CI #100.
+- Couverture CI actuelle : **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches**.
+- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** dans le déploiement #79.
+- Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
+- Le suivi QA vivant est tenu dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 
 ## Preview iPad
 
-La preview de développement cible est :
+La preview de développement est disponible sur :
 
 `https://tatoune.alwaysdata.net/`
 
-Le workflow GitHub `Deploy preview to alwaysdata` synchronise automatiquement les changements après configuration du secret de déploiement. La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
+Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements vers alwaysdata puis exécute un health check et un contrôle live des métadonnées. Si la clé API alwaysdata n'est pas exposée au workflow, le redémarrage HTTP automatique est ignoré et peut être effectué manuellement ; les contrôles live restent exécutés.
+
+La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
 
 Voir [Déploiement alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md).
 
@@ -85,6 +88,8 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [UI et quatre thèmes](docs/UI-THEMES.md)
 - [Sécurité](docs/SECURITY.md)
 - [Tests et validation](docs/TESTING.md)
+- [Suivi QA vivant](docs/QA-TRACKING.md)
+- [Rapport QA v1.0.0](docs/QA-REPORT.md)
 - [Test iPad / PWA](docs/DEPLOYMENT-IPAD.md)
 - [Preview alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md)
 
@@ -96,7 +101,7 @@ public/                 PWA et design system
 scripts/                seed, validation, licences, tests API externes
 tests/                  tests automatisés et fixtures synthétiques
 deploy/                 lanceurs d'environnements de preview
-docs/                   documentation produit et technique
+docs/                   documentation produit, technique et suivi QA
 integrations/            guides n8n, Make, Notion, MCP
 .github/workflows/       CI, Live QA et déploiement preview
 ```
