@@ -123,6 +123,18 @@ jobs:
             "https://api.alwaysdata.com/v1/site/${SITE_ID}/restart/"
           echo
 
+      - name: Resolve covers for existing preview albums
+        run: |
+          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
+          IDS="$(node -e "const x=JSON.parse(process.argv[1]); for(const a of (x.items||[])) if(a.id&&a.isbn&&a.cover_origin!=='user') console.log(a.id)" "$ALBUMS")"
+          while IFS= read -r id; do
+            [ -z "$id" ] && continue
+            curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
+              --request POST "$PREVIEW_URL/api/albums/$id/cover/resolve" >/dev/null
+          done <<EOF
+          $IDS
+          EOF
+
       - name: Preview health check
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"

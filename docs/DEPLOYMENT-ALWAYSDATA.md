@@ -79,7 +79,7 @@ Le workflow :
 3. ne transfère ni `.env`, ni export privé, ni base locale ;
 4. effectue un contrôle sur `https://tatoune.alwaysdata.net/api/health`.
 
-Le workflow redémarre le processus Node après la synchronisation. La clé API AlwaysData n'est donc pas obligatoire pour les déploiements de preview.
+Le workflow redémarre le processus Node après la synchronisation et résout les couvertures des albums de preview déjà présents. La clé API AlwaysData n'est donc pas obligatoire pour les déploiements de preview.
 
 ## Déploiements suivants
 
