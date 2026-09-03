@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Refonte globale UI V3** : nouveau shell, hiérarchie visuelle, cartes, grilles, panneaux, modales, stats et fiche album via `experience-v3.css`.
+- Nouvelle identité des couvertures manquantes : remplacement du placeholder générique par une **couverture éditoriale typographique** basée sur série, titre, tome et éditeur.
+- Récupération progressive des couvertures visibles via les fournisseurs existants, limitée en concurrence et en volume pour éviter le martèlement des API.
+- Navigation modernisée avec pictogrammes SVG cohérents, sans modifier les routes ni les fonctionnalités.
+- Refonte des quatre thèmes Neutre / BD / Comics / Manga en conservant une UX unique.
+- Responsive repris pour smartphone, tablette/iPad et desktop ; collection 2 colonnes sur smartphone, densité plus forte sur les grands écrans.
+- Paramètres enrichis par des aperçus visuels des thèmes et amélioration de la lisibilité des séries, auteurs, éditeurs, stats et écrans d'intégration.
+- Cache PWA incrémenté en `bd-desk-v26`, build frontend `2026.09.03.3`.
+- Ajout de `tests/experience-v3.test.js` et extension du smoke test CI à la couche V3.
+- Ajout de `docs/UI-EXPERIENCE-V3.md`.
 - Ajout de `docs/QA-TRACKING.md`, journal QA vivant sous forme de tableau **Test / Validation / PR**.
 - Mise à jour du suivi CI : Node.js 22/24, couverture et smoke tests exécutés à chaque changement.
 - Validation live de la preview alwaysdata : synchronisation SSH, `/api/health` et normalisation BnF réussies dans le déploiement #79.
