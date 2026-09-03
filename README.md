@@ -24,11 +24,27 @@ Sur smartphone :
 
 Les règles adaptatives sont isolées dans `public/adaptive-ui.js` et `public/adaptive-ui.css` afin de ne pas dupliquer l'application.
 
+## Catalogue visuel 2026
+
+La grille de collection évolue vers une logique de **bibliothèque visuelle dense** : on conserve l'idée efficace des gestionnaires BD historiques — parcourir rapidement beaucoup de couvertures — sans reprendre leur identité graphique ni leur mise en page.
+
+La couche `public/catalog-ui.css` ajoute :
+
+- smartphone portrait : **2 colonnes compactes**, avec une cible de consultation de **4 albums (2 × 2)** dans un écran PWA courant ;
+- smartphone paysage : 4 colonnes ;
+- tablette : 4 colonnes en portrait, 5 en paysage ;
+- desktop : grille généralement comprise entre 6 et 8 couvertures selon la largeur disponible ;
+- filtres de collection compacts et sticky ;
+- métadonnées réduites sous les couvertures pour favoriser la densité ;
+- KPI d'accueil plus compacts et derniers ajouts alignés sur le même langage de grille.
+
+Cette refonte est développée dans `feat/catalog-ui-refresh` avant fusion dans `main`. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
+
 ## État courant
 
 - CI Node.js 22 et 24, couverture et smoke tests sont exécutés à chaque changement.
 - La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
-- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés**.
+- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** sur `main`.
 - Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
@@ -41,7 +57,7 @@ La preview de développement est disponible sur :
 
 `https://tatoune.alwaysdata.net/`
 
-Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements vers alwaysdata puis exécute un health check et un contrôle live des métadonnées. Si la clé API alwaysdata n'est pas exposée au workflow, le redémarrage HTTP automatique est ignoré et peut être effectué manuellement ; les contrôles live restent exécutés.
+Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements de `main` vers alwaysdata puis exécute un health check et un contrôle live des métadonnées. Si la clé API alwaysdata n'est pas exposée au workflow, le redémarrage HTTP automatique est ignoré et peut être effectué manuellement ; les contrôles live restent exécutés.
 
 La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
 
@@ -104,6 +120,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [Licence Premium](docs/PREMIUM-LICENSE.md)
 - [MCP 2026-07-28](docs/MCP.md)
 - [UI et quatre thèmes](docs/UI-THEMES.md)
+- [UI catalogue 2026](docs/UI-CATALOG.md)
 - [Sécurité](docs/SECURITY.md)
 - [Tests et validation](docs/TESTING.md)
 - [Suivi QA vivant](docs/QA-TRACKING.md)
@@ -115,14 +132,16 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 
 ```text
 src/                    serveur, données, licence, MCP, métadonnées
-public/                 PWA, design system et adaptation responsive universelle
-scripts/                seed, validation, licences, tests API externes
+public/                 PWA, design system, adaptation responsive et grille catalogue
+a scripts/              seed, validation, licences, tests API externes
 tests/                  tests automatisés et fixtures synthétiques
 deploy/                 lanceurs d'environnements de preview
 docs/                   documentation produit, technique et suivi QA
 integrations/            guides n8n, Make, Notion, MCP
 .github/workflows/       CI, Live QA et déploiement preview
 ```
+
+> Note : le dossier réel est `scripts/` ; la ligne ci-dessus est descriptive de la structure du dépôt.
 
 ## Données privées
 
