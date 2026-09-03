@@ -95,14 +95,26 @@ jobs:
         env:
           SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
         run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" 'sh -s' <<'REMOTE'
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "sh -s -- '$ALWAYSDATA_USER' '$ALWAYSDATA_TARGET' '3096'" <<'REMOTE'
           set -eu
-          PIDS="$(ps -eo pid=,comm=,args= | awk '$2 == "node" && $0 ~ /\/home\/tatoune\/www\/bd-desk\/src\/server[.]js/ { print $1 }')"
+          ACCOUNT_USER="$1"
+          TARGET="$2"
+          PORT="$3"
+          PIDS="$({
+            ps -eo user=,pid=,args= | awk -v user="$ACCOUNT_USER" -v target="$TARGET" '$1 == user && $0 ~ /[n]ode/ && (index($0,target) || $0 ~ /src\/server[.]js/) { print $2 }'
+            if command -v lsof >/dev/null 2>&1; then
+              lsof -t -n -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
+            fi
+            if command -v ss >/dev/null 2>&1; then
+              ss -ltnp 2>/dev/null | awk -v port="$PORT" '$4 ~ ":" port "$" { match($0,/pid=[0-9]+/); if (RSTART) print substr($0,RSTART+4,RLENGTH-4) }'
+            fi
+          } | sort -nu)"
           if [ -n "$PIDS" ]; then
             echo "Stopping BD Desk Node process(es): $PIDS"
             kill -TERM $PIDS 2>/dev/null || true
+            sleep 3
           else
-            echo 'No BD Desk Node process found; continuing with the AlwaysData supervisor.'
+            echo 'No BD Desk Node process found by path or port; continuing with the AlwaysData supervisor.'
           fi
           REMOTE
 
@@ -139,6 +151,18 @@ jobs:
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
+
+      - name: Verify same-origin cover proxy
+        run: |
+          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
+          ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -D /tmp/bd-desk-cover-headers \
+            "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/image?v=${GITHUB_SHA}" \
+            -o /tmp/bd-desk-cover-image
+          grep -i '^content-type: image/' /tmp/bd-desk-cover-headers >/dev/null
+          test -s /tmp/bd-desk-cover-image
+          echo "Same-origin cover proxy verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
 
       - name: Verify live experience V3 and cover resolver
         run: |
