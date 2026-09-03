@@ -72,6 +72,15 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"return 'Glénat';\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
 
+      - name: Verify cover resolver deployed
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
+        run: |
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "test -s '$ALWAYSDATA_TARGET/public/cover-sources.js'"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'openapi.bnf.fr/couverture' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
         run: |
@@ -99,15 +108,20 @@ jobs:
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
-      - name: Verify live experience V3
+      - name: Verify live experience V3 and cover resolver
         run: |
-          HTML="$(curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/?build=20260903-3")"
-          printf '%s' "$HTML" | grep -F 'experience-v3.css?v=20260903-3' >/dev/null
-          printf '%s' "$HTML" | grep -F 'experience-v3.js?v=20260903-3' >/dev/null
+          HTML="$(curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/?build=${GITHUB_SHA}")"
           printf '%s' "$HTML" | grep -F 'Collection studio' >/dev/null
-          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/experience-v3.css?v=20260903-3" | grep -F '.editorial-cover' >/dev/null
-          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/experience-v3.js?v=20260903-3" | grep -F 'BDDeskExperience' >/dev/null
-          echo 'Live BD Desk experience V3 verified.'
+          EXPERIENCE_CSS="$(printf '%s' "$HTML" | grep -oE '/experience-v3\.css\?v=[0-9]{8}-[0-9]+' | head -1)"
+          EXPERIENCE_JS="$(printf '%s' "$HTML" | grep -oE '/experience-v3\.js\?v=[0-9]{8}-[0-9]+' | head -1)"
+          COVER_JS="$(printf '%s' "$HTML" | grep -oE '/cover-sources\.js\?v=[0-9]{8}-[0-9]+' | head -1)"
+          test -n "$EXPERIENCE_CSS" && test -n "$EXPERIENCE_JS" && test -n "$COVER_JS"
+          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$EXPERIENCE_CSS" | grep -F '.editorial-cover' >/dev/null
+          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$EXPERIENCE_JS" | grep -F 'BDDeskExperience' >/dev/null
+          COVER_CODE="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$COVER_JS")"
+          printf '%s' "$COVER_CODE" | grep -F 'openapi.bnf.fr/couverture' >/dev/null
+          printf '%s' "$COVER_CODE" | grep -F 'covers.openlibrary.org' >/dev/null
+          echo 'Live BD Desk experience V3 and real cover resolver verified.'
 
       - name: Verify live metadata normalization
         run: |
