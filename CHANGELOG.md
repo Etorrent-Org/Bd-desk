@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Ajout de `docs/QA-TRACKING.md`, journal QA vivant sous forme de tableau **Test / Validation / PR**.
+- Mise à jour du suivi CI : **43/43 tests** réussis, CI Node.js 22/24 verte, couverture à **99,23 % lignes**, **96,02 % fonctions** et **75,49 % branches**.
+- Validation live de la preview alwaysdata : synchronisation SSH, `/api/health` et normalisation BnF réussies dans le déploiement #79.
+- Le redémarrage automatique via l'API alwaysdata devient non bloquant : un redémarrage manuel reste possible sans empêcher les contrôles live.
+- Harmonisation du README, de l'architecture et de la documentation QA avec l'état réellement validé.
+
 ## 1.0.1 — 2026-09-02
 
 - Refonte de la fiche album : hiérarchie éditoriale, grande couverture, sections informations/créateurs/résumé/collection/métadonnées.
