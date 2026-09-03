@@ -91,14 +91,15 @@ jobs:
           COVER_DIR="$(mktemp -d)"
           COVER_LIST="$(mktemp)"
           SWEET_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          SAGA_THREE_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782870970430'); if(!a) throw new Error('Troisième album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
           node -e 'const x=JSON.parse(process.argv[1]); for(const a of (x.items||[])) if(a.id&&a.cover_origin==="machine"&&a.cover_url) process.stdout.write(`${a.id}\t${a.cover_url}\n`)' "$ALBUMS" > "$COVER_LIST"
           while IFS="$(printf '\t')" read -r id url; do
             [ -z "$id" ] && continue
             case "$url" in
-              https://openapi.bnf.fr/*|https://books.google.com/*|https://books.googleusercontent.com/*|https://images.hachette-livre.fr/*|https://www.images.hachette-livre.fr/*) ;;
+              https://openapi.bnf.fr/*|https://covers.openlibrary.org/*|https://books.google.com/*|https://books.googleusercontent.com/*|https://images.hachette-livre.fr/*|https://www.images.hachette-livre.fr/*) ;;
               *) continue ;;
             esac
-            curl -fsSL --connect-timeout 10 --max-time 45 --retry 3 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
+            curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
             if [ -s "$COVER_DIR/$id.jpeg" ]; then
               {
                 printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1867"><image width="1400" height="1867" preserveAspectRatio="none" href="data:image/jpeg;base64,'
@@ -109,6 +110,7 @@ jobs:
             fi
           done < "$COVER_LIST"
           test -s "$COVER_DIR/$SWEET_ID.svg"
+          test -s "$COVER_DIR/$SAGA_THREE_ID.svg"
           echo "Materialized $(find "$COVER_DIR" -type f -name '*.svg' | wc -l) trusted cover asset(s)."
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET/public/covers'"
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e rsync -az --delete "$COVER_DIR/" "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/public/covers/"
