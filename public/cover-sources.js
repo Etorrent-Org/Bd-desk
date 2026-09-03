@@ -23,13 +23,83 @@
     ];
   }
 
-  function probe(url){
+  function yearFrom(value){
+    const match=text(value).match(/(?:19|20)\d{2}/);
+    return match?.[0]||null;
+  }
+
+  function yearsFor(album,candidates=[]){
+    const years=[];
+    const add=value=>{const year=yearFrom(value);if(year&&!years.includes(year))years.push(year)};
+    add(album?.legal_deposit);
+    add(album?.print_date);
+    add(album?.purchase_date);
+    for(const candidate of candidates)add(candidate?.publishedDate);
+    return years;
+  }
+
+  function isGlenat(album,candidates=[]){
+    const values=[album?.publisher,album?.collection_name,...candidates.flatMap(c=>[c?.publisher,c?.collection])];
+    return values.some(value=>/gl[eé]nat|comix\s*buro/i.test(text(value)));
+  }
+
+  function glenatSources(album,candidates=[]){
+    const isbn=canonical(album?.isbn);
+    if(!isbn||!isGlenat(album,candidates))return [];
+    return yearsFor(album,candidates).map(year=>({
+      source:'glenat-hachette',
+      url:`https://media.hachette.fr/imgArticle/GLENAT/${year}/${encodeURIComponent(isbn)}-001-X.jpeg?source=web`
+    }));
+  }
+
+  async function discoverCandidates(isbn){
+    try{
+      const response=await fetch('/api/discover?isbn='+encodeURIComponent(canonical(isbn)),{cache:'no-store'});
+      if(!response.ok)return [];
+      const payload=await response.json();
+      return Array.isArray(payload?.candidates)?payload.candidates:[];
+    }catch{return []}
+  }
+
+  function probe(url,timeoutMs=5500){
     return new Promise(resolve=>{
       const im=new Image();
-      im.onload=()=>resolve(im.naturalWidth>=120&&im.naturalHeight>=160);
-      im.onerror=()=>resolve(false);
+      let done=false;
+      const finish=value=>{if(done)return;done=true;clearTimeout(timer);im.onload=null;im.onerror=null;resolve(value)};
+      const timer=setTimeout(()=>finish(false),timeoutMs);
+      im.onload=()=>finish(im.naturalWidth>=120&&im.naturalHeight>=160);
+      im.onerror=()=>finish(false);
       im.src=url;
     });
+  }
+
+  function sourceTitle(source){
+    if(source==='bnf')return `Source : Bibliothèque nationale de France · récupérée le ${dateFr()}`;
+    if(source==='glenat-hachette')return 'Source : Éditions Glénat / Hachette Livre';
+    if(source==='google-books')return 'Source : Google Books';
+    return 'Source : Open Library';
+  }
+
+  async function installCover({host,placeholder,album,candidate}){
+    if(!(await probe(candidate.url)))return false;
+    if(!placeholder.isConnected)return true;
+    const im=document.createElement('img');
+    im.className='cover-image';
+    im.loading='lazy';
+    im.decoding='async';
+    im.alt=`Couverture de ${text(album.title)||text(album.series)||'album'}`;
+    im.src=candidate.url;
+    im.dataset.coverSource=candidate.source;
+    im.title=sourceTitle(candidate.source);
+    placeholder.replaceWith(im);
+    if(album.cover_url!==candidate.url&&album.coverUrl!==candidate.url){
+      fetch('/api/albums/'+encodeURIComponent(host.dataset.album),{
+        method:'PATCH',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({coverUrl:candidate.url})
+      }).catch(()=>{});
+    }
+    return true;
   }
 
   async function hydrate(host){
@@ -41,29 +111,24 @@
     try{
       const album=await fetch('/api/albums/'+encodeURIComponent(id),{cache:'no-store'}).then(r=>r.ok?r.json():null);
       if(!album?.isbn)return;
-      for(const candidate of sourcesFor(album.isbn)){
-        if(!(await probe(candidate.url)))continue;
-        if(!placeholder.isConnected)return;
-        const im=document.createElement('img');
-        im.className='cover-image';
-        im.loading='lazy';
-        im.decoding='async';
-        im.alt=`Couverture de ${text(album.title)||text(album.series)||'album'}`;
-        im.src=candidate.url;
-        im.dataset.coverSource=candidate.source;
-        im.title=candidate.source==='bnf'
-          ?`Source : Bibliothèque nationale de France · récupérée le ${dateFr()}`
-          :'Source : Open Library';
-        placeholder.replaceWith(im);
-        if(album.cover_url!==candidate.url&&album.coverUrl!==candidate.url){
-          fetch('/api/albums/'+encodeURIComponent(id),{
-            method:'PATCH',
-            headers:{'content-type':'application/json'},
-            body:JSON.stringify({coverUrl:candidate.url})
-          }).catch(()=>{});
-        }
-        return;
+
+      const direct=sourcesFor(album.isbn);
+      const bnf=direct.find(candidate=>candidate.source==='bnf');
+      if(bnf&&await installCover({host,placeholder,album,candidate:bnf}))return;
+
+      const discovered=await discoverCandidates(album.isbn);
+      for(const item of discovered){
+        if(!item?.coverUrl)continue;
+        const source=item.source==='google-books'?'google-books':'open-library';
+        if(await installCover({host,placeholder,album,candidate:{source,url:item.coverUrl}}))return;
       }
+
+      for(const candidate of glenatSources(album,discovered)){
+        if(await installCover({host,placeholder,album,candidate}))return;
+      }
+
+      const openLibrary=direct.find(candidate=>candidate.source==='open-library');
+      if(openLibrary)await installCover({host,placeholder,album,candidate:openLibrary});
     }catch{}
   }
 
@@ -115,5 +180,5 @@
   document.addEventListener('DOMContentLoaded',()=>scan(),{once:true});
   scan();
 
-  window.BDDeskCoverSources={sourcesFor};
+  window.BDDeskCoverSources={sourcesFor,glenatSources};
 })();
