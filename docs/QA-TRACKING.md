@@ -36,7 +36,7 @@ La campagne matérielle est exécutée **strictement dans l'ordre ci-dessous, un
 
 | Test | Validation | PR |
 |---|---|---|
-| QA-IOS-001 — iPad / Safari / chargement initial en portrait : page d'accueil complète, sans écran blanc, erreur ni débordement horizontal | ⏳ **EN COURS — premier test de la campagne** | À venir |
+| QA-IOS-001 — iPad / Safari / chargement initial en portrait : page d'accueil complète, sans écran blanc, erreur ni débordement horizontal | ⚠️ **Capture reçue sur iPad en Brave paysage** : chargement global OK, mais chevauchement visible dans `Reprendre ma lecture` lorsque la couverture est absente. Correctif CSS appliqué et cache PWA incrémenté ; **retest requis en Safari portrait avant validation**. | Direct `main` — [`bcb8b0b`](https://github.com/Etorrent-Org/Bd-desk/commit/bcb8b0b71e5111f69b162e66b51ddeffab6b53bd), [`5c2cf1c`](https://github.com/Etorrent-Org/Bd-desk/commit/5c2cf1cabdbe7de97653fa4016fcaf395720e08a), [`e41397f`](https://github.com/Etorrent-Org/Bd-desk/commit/e41397ff5179d2f94f832b7745fb0f3391225d46) |
 | QA-IOS-002 — iPhone / Safari / chargement initial en portrait : page d'accueil complète, sans écran blanc, erreur ni débordement horizontal | ⏳ À valider après QA-IOS-001 | À venir |
 | QA-IOS-003 — iPad / navigation principale en portrait : navigation, sidebar/menu, FAB et zones tactiles | ⏳ À valider | À venir |
 | QA-IOS-004 — iPhone / navigation principale en portrait : navigation basse, menu, FAB et zones tactiles | ⏳ À valider | À venir |
