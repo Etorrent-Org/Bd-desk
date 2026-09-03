@@ -88,7 +88,23 @@ jobs:
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
         run: |
-          echo '::warning::ALWAYSDATA_API_KEY is unavailable. Automatic restart is skipped; a manual alwaysdata restart is acceptable for this preview.'
+          echo '::warning::ALWAYSDATA_API_KEY is unavailable. Falling back to a targeted SSH process restart.'
+
+      - name: Restart alwaysdata HTTP site through process supervisor
+        if: env.ALWAYSDATA_API_KEY == '' && env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
+        run: |
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" 'sh -s' <<'REMOTE'
+          set -eu
+          PIDS="$(ps -eo pid=,comm=,args= | awk '$2 == "node" && $0 ~ /\/home\/tatoune\/www\/bd-desk\/src\/server[.]js/ { print $1 }')"
+          if [ -n "$PIDS" ]; then
+            echo "Stopping BD Desk Node process(es): $PIDS"
+            kill -TERM $PIDS 2>/dev/null || true
+          else
+            echo 'No BD Desk Node process found; continuing with the AlwaysData supervisor.'
+          fi
+          REMOTE
 
       - name: Discover and restart alwaysdata HTTP site
         if: env.ALWAYSDATA_API_KEY != ''
