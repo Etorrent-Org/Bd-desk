@@ -46,7 +46,8 @@ flowchart LR
   TESTS --> PREVIEW[Déploiement preview alwaysdata]
   PREVIEW --> HEALTH[/api/health]
   HEALTH --> LIVE[Contrôles live ciblés]
-  LIVE --> QA[docs/QA-TRACKING.md]
+  LIVE --> IOS[QA matériel iPad + iPhone]
+  IOS --> QA[docs/QA-TRACKING.md]
   QA --> TRACE[PR ou commit main]
 ```
 
@@ -59,4 +60,13 @@ Principes :
 - un test partiel, ignoré ou dépendant d'un matériel réel reste explicitement marqué comme tel ;
 - une fonctionnalité n'est considérée comme validée que lorsque son état est reporté dans le suivi QA.
 
-La preview alwaysdata constitue l'environnement de validation mobile/iPad. Le workflow de déploiement synchronise les fichiers puis exécute le health check et les contrôles live. Le redémarrage automatique par API est un confort d'exploitation : son absence ne doit pas masquer le résultat réel des contrôles de disponibilité.
+### Matrice iOS réelle
+
+La validation mobile de release couvre **deux matériels distincts** :
+
+- **iPad** : Safari portrait/paysage puis PWA installée ;
+- **iPhone** : Safari portrait/paysage puis PWA installée.
+
+La campagne `QA-IOS-001` à `QA-IOS-020` couvre le chargement, la navigation tactile, les quatre thèmes, la fiche album, la recherche, l'ajout, le scanner ISBN/EAN avec caméra réelle, les interactions de collection et la reprise de la PWA. Les tests sont exécutés **strictement un par un** ; une anomalie est corrigée et retestée avant de passer au test suivant.
+
+La preview alwaysdata constitue l'environnement de validation iOS. Le workflow de déploiement synchronise les fichiers puis exécute le health check et les contrôles live. Le redémarrage automatique par API est un confort d'exploitation : son absence ne doit pas masquer le résultat réel des contrôles de disponibilité.
