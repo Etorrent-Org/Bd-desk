@@ -26,7 +26,7 @@
     if(hero){
       hero.setAttribute('data-detail-album',a.id);
       const current=hero.querySelector('img,.placeholder');
-      const cover=a.cover_url||a.coverUrl;
+      const cover=window.BDDeskCoverSources?.displayUrl?.(a)||a.cover_url||a.coverUrl;
       if(cover){
         const im=document.createElement('img');im.className='cover-image detail-cover';im.src=cover;im.alt='Couverture '+(a.title||a.series||'album');
         if(current)current.replaceWith(im);else hero.prepend(im);

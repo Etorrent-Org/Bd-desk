@@ -8,6 +8,7 @@
   const canonical=value=>text(value).replace(/[^0-9X]/gi,'').toUpperCase();
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
   const hostId=host=>host?.dataset?.album||host?.dataset?.detailAlbum||null;
+  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin==='machine'||album?.coverOrigin==='machine';return src&&machine&&id?'/api/albums/'+encodeURIComponent(id)+'/cover/image?v='+encodeURIComponent(album?.cover_checked_at||album?.coverCheckedAt||album?.updated_at||'1'):src||null};
 
   function sourcesFor(isbn){
     const n=canonical(isbn);
@@ -65,14 +66,15 @@
 
   async function installCover({node,album,cover}){
     if(!cover?.url||album?.cover_origin==='user')return false;
-    if(!(await probe(cover.url)))return false;
+    const url=displayUrl({...album,cover_url:cover.url,cover_origin:'machine'});
+    if(!(await probe(url)))return false;
     if(!node?.isConnected)return true;
     const im=document.createElement('img');
     im.className='cover-image';
     im.loading='lazy';
     im.decoding='async';
     im.alt='Couverture de '+(text(album.title)||text(album.series)||'album');
-    im.src=cover.url;
+    im.src=url;
     im.dataset.coverSource=cover.source||'metadata-resolver';
     im.dataset.coverConfidence=String(cover.confidence??'');
     im.title=sourceTitle(cover.source);
@@ -165,5 +167,5 @@
   document.addEventListener('DOMContentLoaded',()=>scan(),{once:true});
   scan();
 
-  window.BDDeskCoverSources={sourcesFor,resolveFor,recoverHost,recoverImage};
+  window.BDDeskCoverSources={sourcesFor,resolveFor,recoverHost,recoverImage,displayUrl};
 })();

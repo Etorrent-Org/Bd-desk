@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {openDatabase,createAlbum} from '../src/db.js';
+import {openDatabase,createAlbum,persistCoverDecision} from '../src/db.js';
 import {createBdDeskApp} from '../src/app.js';
 import {createLicense} from '../src/license.js';
 import {MCP_PROTOCOL_VERSION} from '../src/mcp.js';
 
-async function withServer(fn){
+async function withServer(fn,options={}){
   const db=openDatabase(':memory:');
   createAlbum(db,{series:'Saga',number:'1',title:'Premier',isbn:'9782203237766'});
   const config={dbPath:':memory:',seedCsvPath:null,licenseSecret:'secret-123',googleBooksApiKey:'',webhookSigningSecret:'hook',allowedOrigins:['https://client.test']};
@@ -13,7 +13,7 @@ async function withServer(fn){
   const metadataFetcher=async isbn=>{metadataCalls++;return[{source:'bnf',sourceId:'x',title:'Titre BnF',publisher:'Editeur BnF',publishedDate:'2024',identifiers:[isbn],coverIdentifiers:[isbn],coverUrl:'https://openapi.bnf.fr/couverture/'+isbn,coverEvidence:{official:true}}]};
   const webhookCalls=[];
   const dispatchWebhookImpl=async(hook,event,payload)=>{webhookCalls.push({hook,event,payload});return{ok:true,status:200}};
-  const server=createBdDeskApp(config,{db,seed:false,fetchMetadataImpl:metadataFetcher,dispatchWebhookImpl});
+  const server=createBdDeskApp(config,{db,seed:false,fetchMetadataImpl:metadataFetcher,dispatchWebhookImpl,coverFetchImpl:options.coverFetchImpl});
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const base=`http://127.0.0.1:${server.address().port}`;
   try{await fn({base,db,config,webhookCalls,metadataCallCount:()=>metadataCalls})}finally{await new Promise(r=>server.close(r))}
@@ -36,3 +36,14 @@ test('Premium protège puis active import, stats, enrichissement, API, webhooks 
 test('webhook actif émis sur création',()=>withServer(async({base,config,webhookCalls})=>{await activate(base,config);let r=await fetch(base+'/api/webhooks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'n8n',url:'https://example.test/hook',events:['album.created']})});assert.equal(r.status,201);r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({series:'S',title:'Nouveau'})});assert.equal(r.status,201);assert.equal(webhookCalls[0].event,'album.created')}));
 test('routes de synthèse et 404',()=>withServer(async({base})=>{for(const p of ['/api/series','/api/authors','/api/publishers','/api/stats','/api/history','/api/loans']){const r=await fetch(base+p);assert.equal(r.status,200,p)}assert.equal((await fetch(base+'/api/inconnue')).status,404)}));
 test('le cache serveur mutualise une résolution ISBN entre découverte et couverture',()=>withServer(async({base,metadataCallCount})=>{await fetch(base+'/api/discover?isbn=9782203237766');const r=await fetch(base+'/api/albums/1/cover/resolve',{method:'POST'});assert.equal(r.status,200);assert.equal(metadataCallCount(),1)}));
+test('la couverture machine est servie en same-origin et refuse une URL non approuvée',()=>withServer(async({base,db})=>{
+  const a=createAlbum(db,{series:'Valhalla Bunker',number:'1',title:'Sweet revenge',isbn:'9782344059814'});
+  persistCoverDecision(db,a.id,{url:'https://www.images.hachette-livre.fr/media/imgArticle/GLENAT/2024/9782344059814-001-X.jpeg',source:'hachette',confidence:.94});
+  let r=await fetch(base+'/api/albums/'+a.id+'/cover/image');
+  assert.equal(r.status,200);
+  assert.equal(r.headers.get('content-type'),'image/jpeg');
+  assert.equal(await r.text(),'official-cover');
+  const user=createAlbum(db,{series:'S',title:'User',coverUrl:'https://example.test/user.jpg'});
+  r=await fetch(base+'/api/albums/'+user.id+'/cover/image');
+  assert.equal(r.status,404);
+},{coverFetchImpl:async()=>new Response('official-cover',{status:200,headers:{'content-type':'image/jpeg'}})}));

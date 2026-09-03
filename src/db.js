@@ -246,17 +246,17 @@ export function deleteAlbum(db,id) {
 
 function numN(v){ const m=String(v||'').match(/^(\d+(?:\.\d+)?)$/); return m?Number(m[1]):null; }
 export function seriesSummary(db) {
-  const rows=db.prepare('SELECT series, number, read, cover_url, id, title FROM albums ORDER BY series COLLATE NOCASE, CAST(number AS REAL)').all();
+  const rows=db.prepare('SELECT series, number, read, cover_url, cover_origin, cover_checked_at, id, title FROM albums ORDER BY series COLLATE NOCASE, CAST(number AS REAL)').all();
   const map=new Map();
-  for(const r of rows){ if(!map.has(r.series)) map.set(r.series,{name:r.series,owned:0,read:0,numbers:[],coverUrl:r.cover_url,albumId:r.id,title:r.title}); const s=map.get(r.series); s.owned++; s.read+=r.read?1:0; const n=numN(r.number); if(n!=null)s.numbers.push(n); }
+  for(const r of rows){ if(!map.has(r.series)) map.set(r.series,{name:r.series,owned:0,read:0,numbers:[],coverUrl:r.cover_url,coverOrigin:r.cover_origin,coverCheckedAt:r.cover_checked_at,albumId:r.id,title:r.title}); const s=map.get(r.series); s.owned++; s.read+=r.read?1:0; const n=numN(r.number); if(n!=null)s.numbers.push(n); }
   return [...map.values()].map(s=>{ const ints=s.numbers.filter(Number.isInteger); let missing=[]; if(ints.length>=2){ const min=Math.min(...ints),max=Math.max(...ints),set=new Set(ints); for(let n=min;n<=max;n++)if(!set.has(n))missing.push(n); } return {...s,missing,progress:s.owned?Math.round(s.read/s.owned*100):0}; }).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
 }
 
 export function dashboard(db) {
   const stats=db.prepare(`SELECT COUNT(*) albums, COUNT(DISTINCT series) series, SUM(CASE WHEN read=1 THEN 1 ELSE 0 END) read, SUM(CASE WHEN wishlist=1 THEN 1 ELSE 0 END) wishlist, SUM(CASE WHEN first_edition=1 THEN 1 ELSE 0 END) eo, COALESCE(SUM(purchase_price),0) spent FROM albums`).get();
   const series=seriesSummary(db); const missing=series.reduce((n,s)=>n+s.missing.length,0);
-  const recent=db.prepare(`SELECT id,title,series,number,cover_url,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC LIMIT 5`).all();
-  const resume=db.prepare(`SELECT id,title,series,number,cover_url FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL) LIMIT 4`).all();
+  const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC LIMIT 5`).all();
+  const resume=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL) LIMIT 4`).all();
   return {...stats,missing,recent,resume,readPercent:stats.albums?Math.round(stats.read/stats.albums*100):0};
 }
 

@@ -22,6 +22,30 @@ function bearer(req){ const h=req.headers.authorization||''; return h.startsWith
 function hash(v){ return crypto.createHash('sha256').update(v).digest('hex'); }
 function randomKey(){ return `bdk_${crypto.randomBytes(24).toString('base64url')}`; }
 
+const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr']);
+const COVER_MAX_BYTES=10*1024*1024;
+function isTrustedCoverUrl(value){
+  try{
+    const url=new URL(String(value||''));
+    return url.protocol==='https:'&&(COVER_HOSTS.has(url.hostname)||url.hostname.endsWith('.hachette-livre.fr'));
+  }catch{return false}
+}
+async function fetchCover(fetchImpl,url){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try{
+    const response=await fetchImpl(url,{headers:{accept:'image/avif,image/webp,image/apng,image/*,*/*;q=0.8','user-agent':'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)'},signal:controller.signal});
+    if(!response.ok)return null;
+    const contentType=(response.headers.get('content-type')||'').split(';')[0].toLowerCase();
+    if(contentType&&!contentType.startsWith('image/'))return null;
+    const declaredLength=Number(response.headers.get('content-length')||0);
+    if(declaredLength>COVER_MAX_BYTES)return null;
+    const buffer=Buffer.from(await response.arrayBuffer());
+    if(!buffer.length||buffer.length>COVER_MAX_BYTES)return null;
+    return {contentType:contentType||'image/jpeg',buffer};
+  }finally{clearTimeout(timer)}
+}
+
 export function createBdDeskApp(config, opts={}){
   const db=opts.db||openDatabase(config.dbPath);
   if(opts.seed!==false) seedIfEmpty(db,config.seedCsvPath);
@@ -29,6 +53,7 @@ export function createBdDeskApp(config, opts={}){
   const metadataCache=new Map();
   const metadataCacheTtlMs=Number(config.metadataCacheTtlMs)>0?Number(config.metadataCacheTtlMs):300_000;
   const webhookDispatcher=opts.dispatchWebhookImpl||dispatchWebhook;
+  const coverFetcher=opts.coverFetchImpl||fetch;
   const getLicense=()=>verifyLicense(db.prepare(`SELECT value FROM settings WHERE key='license'`).get()?.value,config.licenseSecret);
   const premium=(feature)=>hasFeature(getLicense(),feature);
   function authenticateApiKey(req){ const token=bearer(req)||req.headers['x-api-key']; if(!token)return false; const row=db.prepare('SELECT id FROM api_keys WHERE key_hash=? AND revoked_at IS NULL').get(hash(String(token))); if(row)db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(row.id); return Boolean(row); }
@@ -70,6 +95,15 @@ export function createBdDeskApp(config, opts={}){
       if(p==='/api/albums'&&req.method==='POST'){ const a=await jsonBody(req); a.isbn=canonicalIsbn(a.isbn); const created=createAlbum(db,a); await emit('album.created',created); return json(res,201,created); }
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/resolve$/);
       if(m&&req.method==='POST'){ const a=getAlbum(db,m[1]); if(!a)return json(res,404,{error:'Album introuvable'}); if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'}); if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const decision=persistCoverDecision(db,a.id,resolution.cover); return json(res,200,{album:decision.album,resolution,candidates,changed:decision.updated,reason:decision.reason}); }
+      m=p.match(/^\/api\/albums\/(\d+)\/cover\/image$/);
+      if(m&&req.method==='GET'){
+        const a=getAlbum(db,m[1]);
+        if(!a||a.cover_origin!=='machine'||!isTrustedCoverUrl(a.cover_url))return json(res,404,{error:'Couverture machine introuvable'});
+        const cover=await fetchCover(coverFetcher,a.cover_url);
+        if(!cover)return json(res,502,{error:'Source de couverture indisponible'});
+        res.writeHead(200,{'content-type':cover.contentType,'content-length':cover.buffer.length,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; img-src 'self'; frame-ancestors 'none'"});
+        return res.end(cover.buffer);
+      }
       m=p.match(/^\/api\/albums\/(\d+)$/);
       if(m&&req.method==='GET'){ const a=getAlbum(db,m[1]); return a?json(res,200,a):json(res,404,{error:'Album introuvable'}); }
       if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],await jsonBody(req)); await emit('album.updated',a); return json(res,200,a); }
