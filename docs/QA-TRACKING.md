@@ -29,11 +29,38 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 | Preview alwaysdata — `/api/health` | ✅ Health check live réussi — Deploy #79 | Direct `main` — [`6acc9d1`](https://github.com/Etorrent-Org/Bd-desk/commit/6acc9d14423ebfb140e146ea3318dd6c882980ae) |
 | Preview alwaysdata — normalisation métadonnées live | ✅ BnF live validé sur ISBN `9782344059814` : titre `Sweet revenge`, éditeur `Glénat`, collection `Comix Buro` — Deploy #79 | Direct `main` — [`6acc9d1`](https://github.com/Etorrent-Org/Bd-desk/commit/6acc9d14423ebfb140e146ea3318dd6c882980ae) |
 | Redémarrage automatique alwaysdata via API | ⚠️ Non bloquant : clé API non visible par GitHub Actions ; redémarrage manuel effectué puis health check live validé | Direct `main` — [`6acc9d1`](https://github.com/Etorrent-Org/Bd-desk/commit/6acc9d14423ebfb140e146ea3318dd6c882980ae) |
-| Fiche album riche — validation visuelle après refonte v1.0.1 | ⏳ À contrôler sur navigateur/iPad réel ; backend et persistance déjà couverts par tests | Direct `main` — [`8e64483`](https://github.com/Etorrent-Org/Bd-desk/commit/8e6448398b9fd5c4c7bb28784fd53bb1d051c084) |
-| Scanner ISBN — caméra réelle iPad HTTPS | ⏳ À valider sur matériel réel (`getUserMedia` + `BarcodeDetector`) | À venir |
+
+## Campagne active — QA iOS sur iPad et iPhone
+
+La campagne matérielle est exécutée **strictement dans l'ordre ci-dessous, un test à la fois**. Un test doit être validé ou corrigé puis retesté avant de passer au suivant.
+
+| Test | Validation | PR |
+|---|---|---|
+| QA-IOS-001 — iPad / Safari / chargement initial en portrait : page d'accueil complète, sans écran blanc, erreur ni débordement horizontal | ⏳ **EN COURS — premier test de la campagne** | À venir |
+| QA-IOS-002 — iPhone / Safari / chargement initial en portrait : page d'accueil complète, sans écran blanc, erreur ni débordement horizontal | ⏳ À valider après QA-IOS-001 | À venir |
+| QA-IOS-003 — iPad / navigation principale en portrait : navigation, sidebar/menu, FAB et zones tactiles | ⏳ À valider | À venir |
+| QA-IOS-004 — iPhone / navigation principale en portrait : navigation basse, menu, FAB et zones tactiles | ⏳ À valider | À venir |
+| QA-IOS-005 — iPad / paysage : adaptation du layout, absence de chevauchement et conservation des actions | ⏳ À valider | À venir |
+| QA-IOS-006 — iPhone / paysage : adaptation du layout et absence de contenu inaccessible | ⏳ À valider | À venir |
+| QA-IOS-007 — iPad / installation PWA depuis Safari puis lancement depuis l'écran d'accueil | ⏳ À valider | À venir |
+| QA-IOS-008 — iPhone / installation PWA depuis Safari puis lancement depuis l'écran d'accueil | ⏳ À valider | À venir |
+| QA-IOS-009 — iPad / thèmes Neutre, BD, Comics, Manga : cohérence et lisibilité | ⏳ À valider | À venir |
+| QA-IOS-010 — iPhone / thèmes Neutre, BD, Comics, Manga : cohérence et lisibilité | ⏳ À valider | À venir |
+| QA-IOS-011 — iPad / fiche album riche : ouverture, scroll, couverture, sections, fermeture | ⏳ À valider | À venir |
+| QA-IOS-012 — iPhone / fiche album riche : ouverture, scroll, couverture, sections, fermeture | ⏳ À valider | À venir |
+| QA-IOS-013 — iPad / recherche et ajout manuel d'un album | ⏳ À valider | À venir |
+| QA-IOS-014 — iPhone / recherche et ajout manuel d'un album | ⏳ À valider | À venir |
+| QA-IOS-015 — iPad / scanner ISBN-EAN réel en HTTPS : permission caméra, lecture et fallback manuel | ⏳ À valider sur matériel réel | À venir |
+| QA-IOS-016 — iPhone / scanner ISBN-EAN réel en HTTPS : permission caméra, lecture et fallback manuel | ⏳ À valider sur matériel réel | À venir |
+| QA-IOS-017 — iPad / interactions collection : wishlist, lu/non lu, prêt/retour | ⏳ À valider | À venir |
+| QA-IOS-018 — iPhone / interactions collection : wishlist, lu/non lu, prêt/retour | ⏳ À valider | À venir |
+| QA-IOS-019 — iPad / reprise PWA : fermeture, relance, cache et état d'affichage | ⏳ À valider | À venir |
+| QA-IOS-020 — iPhone / reprise PWA : fermeture, relance, cache et état d'affichage | ⏳ À valider | À venir |
 
 ## Règle pour la suite
 
 À chaque nouvelle passe QA, ce tableau doit être mis à jour **avant de considérer la fonctionnalité validée**. Une correction qui répond à un test en échec doit référencer sa PR ; si aucune PR n'est utilisée, le commit `main` correspondant doit rester traçable.
+
+Pour la campagne iOS, aucune ligne `QA-IOS-xxx` suivante n'est lancée tant que la précédente n'est pas soit **✅ validée**, soit **❌ corrigée puis retestée et validée**.
 
 Le rapport [`QA-REPORT.md`](QA-REPORT.md) reste le snapshot détaillé de la validation v1.0.0 ; ce fichier-ci est la source de suivi courante.
