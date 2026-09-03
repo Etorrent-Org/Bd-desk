@@ -19,19 +19,18 @@
       else toast('Scanner caméra indisponible');
     }catch{toast('Impossible de charger le scanner caméra');}
   }
-  function choose(candidates,field,order=['bnf','bnf-intermarc','google-books','open-library']){
-    for(const source of order){const c=candidates.find(x=>x.source===source&&x[field]!=null&&x[field]!=='');if(c)return c[field]}
-    return null;
+  function resolvedValue(resolution,field){
+    return resolution?.fields?.[field]?.value??null;
   }
-  function mergeDiscovered(candidates){
+  function mergeDiscovered(payload){
+    const resolution=payload?.resolution||{};
     return {
-      title:choose(candidates,'title',['bnf','bnf-intermarc','google-books','open-library']),
-      publisher:choose(candidates,'publisher',['bnf','google-books','open-library']),
-      series:choose(candidates,'series',['bnf-intermarc','bnf','google-books','open-library']),
-      seriesNumber:choose(candidates,'seriesNumber',['bnf-intermarc','google-books','open-library','bnf']),
-      collection:choose(candidates,'collection',['bnf','bnf-intermarc']),
-      authors:choose(candidates,'authors',['bnf-intermarc','bnf','google-books','open-library']),
-      coverUrl:choose(candidates,'coverUrl',['google-books','open-library'])
+      title:resolvedValue(resolution,'title'),
+      publisher:resolvedValue(resolution,'publisher'),
+      series:resolvedValue(resolution,'series'),
+      seriesNumber:resolvedValue(resolution,'number'),
+      collection:resolvedValue(resolution,'collectionName'),
+      authors:resolvedValue(resolution,'writer')
     };
   }
   function openAdd(isbn=''){
@@ -44,7 +43,7 @@
     const lookup=async()=>{
       const value=isbnInput.value.replace(/[^0-9Xx]/g,'');
       if(![10,13].includes(value.length)){status.textContent='Saisissez ou scannez un ISBN/EAN valide.';discoveredMeta=null;return;}
-      const token=++lookupToken;status.textContent='Recherche BnF riche, Google Books et Open Library…';
+      const token=++lookupToken;status.textContent='Recherche du catalogue officiel et des sources bibliographiques…';
       try{
         const r=await fetch('/api/discover?isbn='+encodeURIComponent(value),{cache:'no-store'});
         const body=await r.json().catch(()=>({}));
@@ -52,7 +51,7 @@
         if(!r.ok)throw new Error(body.error||'Recherche impossible');
         const candidates=Array.isArray(body.candidates)?body.candidates:[];
         if(!candidates.length){status.textContent='ISBN reconnu, mais aucune métadonnée trouvée. Saisie manuelle possible.';discoveredMeta=null;return;}
-        const merged=mergeDiscovered(candidates);
+        const merged=mergeDiscovered(body);
         discoveredMeta={...merged,source:'isbn-discover'};
         const titleInput=document.getElementById('addTitle'),publisherInput=document.getElementById('addPublisher'),seriesInput=document.getElementById('addSeries'),numberInput=document.getElementById('addNumber'),collectionInput=document.getElementById('addCollection'),authorsInput=document.getElementById('addAuthors');
         if(merged.title)titleInput.value=merged.title;
@@ -61,7 +60,7 @@
         if(merged.seriesNumber!=null&&merged.seriesNumber!=='')numberInput.value=String(merged.seriesNumber);
         if(merged.collection)collectionInput.value=merged.collection;
         if(merged.authors)authorsInput.value=(Array.isArray(merged.authors)?merged.authors:[merged.authors]).join('; ');
-        const sourceLabels=candidates.map(c=>c.source==='google-books'?'Google Books':c.source==='open-library'?'Open Library':c.source==='bnf'||c.source==='bnf-intermarc'?'BnF':c.source).filter(Boolean);
+        const sourceLabels=candidates.map(c=>c.source==='hachette'?'Glénat / Hachette':c.source==='google-books'?'Google Books':c.source==='open-library'?'Open Library':c.source==='bnf'||c.source==='bnf-intermarc'?'BnF':c.source).filter(Boolean);
         const sources=[...new Set(sourceLabels)];
         const detected=[];
         if(merged.series)detected.push(`Série ${Array.isArray(merged.series)?merged.series[0]:merged.series}`);
@@ -92,7 +91,6 @@
       e.preventDefault();
       const data=Object.fromEntries(new FormData(e.currentTarget));
       data.purchasePrice=data.purchasePrice?Number(data.purchasePrice):null;
-      if(discoveredMeta?.coverUrl)data.coverUrl=discoveredMeta.coverUrl;
       if(discoveredMeta)data.source=discoveredMeta.source;
       const r=await fetch('/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
       const body=await r.json().catch(()=>({}));

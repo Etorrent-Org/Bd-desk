@@ -20,12 +20,6 @@
     const d=await r.json();return (d.items||[]).find(a=>String(a.isbn||'')===isbn)||null;
   }
 
-  function chooseCandidate(candidates,field,order=['bnf-intermarc','bnf','google-books','open-library']){
-    for(const source of order){const c=candidates.find(x=>x.source===source&&clean(x[field]));if(c)return c[field]}return null;
-  }
-  function chooseAuthors(candidates){for(const source of ['bnf-intermarc','bnf','google-books','open-library']){const c=candidates.find(x=>x.source===source&&Array.isArray(x.authors)&&x.authors.length);if(c)return c.authors.join('; ')}return null}
-  function chooseCover(candidates){return chooseCandidate(candidates,'coverUrl',['google-books','open-library'])}
-
   function renderRich(a,provenance=[]){
     drawer.dataset.albumId=a.id;
     const hero=drawer.querySelector('.detail-hero');
@@ -49,7 +43,7 @@
     if(clean(a.writer))authors.push(row(a.artist?'Scénario':'Auteur(s)',a.writer));
     if(clean(a.artist))authors.push(row('Dessin',a.artist));
     const editorial=[
-      row('ISBN',a.isbn),row('Éditeur',a.publisher),row('Collection',a.collection_name),row('Date',a.print_date||a.legal_deposit),row('Format',a.format)
+      row('ISBN',a.isbn),row('Éditeur',a.publisher),row('Collection',a.collection_name),row('Date',a.print_date||a.legal_deposit),row('Pagination',a.page_count),row('Format',a.format)
     ].join('');
     const personal=[
       row('État',a.condition),row('Prix d’achat',euro(a.purchase_price)),row('Date d’achat',date(a.purchase_date)),row('Valeur estimée',euro(a.market_value))
@@ -79,21 +73,9 @@
     const album=await resolveAlbum().catch(()=>null);if(!album){flash('Album introuvable');return}
     const license=await fetch('/api/license').then(r=>r.json()).catch(()=>({plan:'free'}));if(license.plan!=='premium'){openPremiumInfo();return}
     flash('Enrichissement en cours…');
-    const r=await fetch(`/api/metadata/${album.id}/enrich`,{method:'POST'});const data=await r.json().catch(()=>({}));
+    const r=await fetch('/api/metadata/'+album.id+'/enrich',{method:'POST'});const data=await r.json().catch(()=>({}));
     if(!r.ok){flash(data.error||'Enrichissement impossible');return}
-    const candidates=data.candidates||[];
-    const patch={};
-    if(!clean(album.series))patch.series=chooseCandidate(candidates,'series');
-    if(!clean(album.number))patch.number=chooseCandidate(candidates,'seriesNumber');
-    if(!clean(album.collection_name))patch.collectionName=chooseCandidate(candidates,'collection',['bnf-intermarc','bnf']);
-    if(!clean(album.writer))patch.writer=chooseAuthors(candidates);
-    if(!clean(album.cover_url))patch.coverUrl=chooseCover(candidates);
-    if(!clean(album.description))patch.description=chooseCandidate(candidates,'description',['bnf','google-books']);
-    if(!clean(album.print_date))patch.printDate=chooseCandidate(candidates,'publishedDate',['bnf','google-books','open-library']);
-    Object.keys(patch).forEach(k=>{if(patch[k]==null||patch[k]==='')delete patch[k]});
-    let updated=data.album||album;
-    if(Object.keys(patch).length){const pr=await fetch('/api/albums/'+album.id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(patch)});if(pr.ok)updated=await pr.json()}
-    renderRich(updated,data.provenance||[]);flash('Fiche enrichie');
+    renderRich(data.album||album,data.provenance||[]);flash(data.changed?'Fiche enrichie':'Aucune donnée fiable supplémentaire');
   }
 
   function openEdit(a){

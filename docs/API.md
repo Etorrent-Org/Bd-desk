@@ -19,7 +19,8 @@ Base : `/api`.
 | PATCH | `/loans/:id/return` | marquer un prêt rendu |
 | GET/POST | `/albums` | lister/créer |
 | GET/PATCH/DELETE | `/albums/:id` | fiche album |
-| GET | `/discover?isbn=…` | recherche externe manuelle |
+| POST | `/albums/:id/cover/resolve` | résoudre une couverture avec preuve ISBN/EAN, sans écraser une couverture utilisateur |
+| GET | `/discover?isbn=…` | recherche externe manuelle avec candidats, scores et résolution retenue |
 | GET | `/export/collection.json` | export complet gratuit |
 
 ## Premium
@@ -28,7 +29,7 @@ Base : `/api`.
 |---|---|---|
 | GET | `/stats/advanced` | `advanced_stats` |
 | GET | `/editions/anomalies` | `advanced_stats` |
-| POST | `/metadata/:id/enrich` | `metadata_auto` |
+| POST | `/metadata/:id/enrich` | `metadata_auto`, champs éditoriaux vides et provenance |
 | POST | `/import/bdgest` | `bulk_import` |
 | GET/POST | `/keys` | `api` |
 | DELETE | `/keys/:id` | `api` |

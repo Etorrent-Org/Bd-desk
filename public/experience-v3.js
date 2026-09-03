@@ -15,12 +15,6 @@
     help:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.3 2.2c-.8.4-1.1.9-1.1 1.8M12 17h.01"/></svg>',
     add:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>'
   };
-  const attempted=new Set();
-  const queued=new Set();
-  let active=0;
-  let autoCount=0;
-  const AUTO_LIMIT=14;
-  const queue=[];
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const text=v=>String(v??'').trim();
@@ -57,46 +51,14 @@
     return node;
   }
 
-  function probe(src){return new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(true);im.onerror=()=>resolve(false);im.src=src})}
-  function validCoverUrl(v){try{const u=new URL(v,location.href);return u.protocol==='https:'?u.href:null}catch{return null}}
-
   async function recoverHost(host,node){
-    const id=host?.dataset?.album;
-    if(!id||attempted.has(id)||autoCount>=AUTO_LIMIT)return;
-    attempted.add(id);autoCount++;
-    try{
-      const album=await fetch('/api/albums/'+encodeURIComponent(id),{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      if(!album){makeCover(node);return}
-      makeCover(node,album);
-      if(!album.isbn)return;
-      const found=await fetch('/api/discover?isbn='+encodeURIComponent(album.isbn),{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const candidates=found?.candidates||[];
-      const urls=candidates.map(c=>validCoverUrl(c.coverUrl||c.cover_url)).filter(Boolean);
-      for(const src of [...new Set(urls)]){
-        if(!(await probe(src)))continue;
-        const im=document.createElement('img');im.className='cover-image';im.loading='lazy';im.alt=`Couverture de ${text(album.title)||text(album.series)||'album'}`;im.src=src;
-        if(node.isConnected)node.replaceWith(im);
-        if(!album.cover_url&&!album.coverUrl){fetch('/api/albums/'+encodeURIComponent(id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({coverUrl:src})}).catch(()=>{})}
-        return;
-      }
-    }catch{makeCover(node)}
+    if(window.BDDeskCoverSources?.recoverHost)return window.BDDeskCoverSources.recoverHost(host,node);
+    return makeCover(node);
   }
-
-  function pump(){
-    while(active<2&&queue.length){const [host,node]=queue.shift();active++;recoverHost(host,node).finally(()=>{active--;pump()})}
-  }
-  function enqueue(host,node){const id=host?.dataset?.album;if(!id||queued.has(id)||attempted.has(id))return;queued.add(id);queue.push([host,node]);pump()}
-
-  const observer=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{
-    for(const entry of entries){if(!entry.isIntersecting)continue;observer.unobserve(entry.target);const node=entry.target;const host=node.closest('[data-album]');if(host)enqueue(host,node)}
-  },{rootMargin:'220px'}):null;
 
   function enhancePlaceholders(root=document){
     $$('.placeholder:not([data-enhanced]),.cover-fallback:not([data-enhanced])',root).forEach(node=>{
       makeCover(node);
-      const host=node.closest('[data-album]');
-      if(!host)return;
-      if(observer)observer.observe(node);else enqueue(host,node);
     });
   }
 

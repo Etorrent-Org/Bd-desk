@@ -1,0 +1,12 @@
+<srw:numberOfRecords>1</srw:numberOfRecords>
+<mxc:record>
+  <mxc:recordIdentifier>ark:/12148/cb475488635</mxc:recordIdentifier>
+  <mxc:controlfield tag="003">http://catalogue.bnf.fr/ark:/12148/cb475488635</mxc:controlfield>
+  <mxc:datafield tag="020"><mxc:subfield code="a">9782344059814</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="245"><mxc:subfield code="a">Sweet revenge</mxc:subfield><mxc:subfield code="f">Fabien Bedouel</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="260"><mxc:subfield code="c">Comix buro</mxc:subfield><mxc:subfield code="d">DL 2024</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="280"><mxc:subfield code="a">1 vol. (64 p.)</mxc:subfield><mxc:subfield code="d">32 cm</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="290"><mxc:subfield code="a">Valhalla Bunker</mxc:subfield><mxc:subfield code="v">1</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="460"><mxc:subfield code="t">Valhalla Bunker</mxc:subfield><mxc:subfield code="v">1</mxc:subfield></mxc:datafield>
+  <mxc:datafield tag="295"><mxc:subfield code="a">Comix Buro</mxc:subfield></mxc:datafield>
+</mxc:record>

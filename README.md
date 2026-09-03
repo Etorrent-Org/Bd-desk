@@ -6,6 +6,8 @@
 
 - **Gratuit** : collection illimitée, ajout manuel, scan ISBN/EAN, recherche, séries, albums, auteurs, éditeurs, wishlist, prêts, lecture, historique, export JSON et statistiques essentielles.
 - **Premium** : import massif BDGest, enrichissement automatique multi-source, statistiques avancées, détection de variantes/anomalies, API, webhooks HMAC et MCP pour n8n, Notion, Make et agents IA.
+- Le résolveur de métadonnées est générique : il rapproche les fournisseurs par ISBN/EAN exact, conserve la provenance et accepte une couverture automatique uniquement avec une preuve d’identité exploitable. Le catalogue officiel Hachette utilisé par Glénat complète BnF, Google Books et Open Library.
+- Une URL Open Library construite mécaniquement n’est jamais enregistrée comme couverture. Les couvertures existantes issues de l’ancien comportement sont marquées machine et remplaçables ; une couverture saisie par le collectionneur reste protégée.
 - Une fonction Premium n'est jamais seulement masquée dans l'interface : elle est **contrôlée côté serveur** par une licence signée.
 - Les données personnelles du collectionneur ne sont jamais écrasées silencieusement par le moteur de métadonnées.
 
@@ -46,8 +48,9 @@ Cette refonte a été fusionnée via **PR #1** dans `main` et déployée sur la 
 - La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
 - **Catalogue visuel 2026 sur `main`** : CI #149 verte, PR #1 fusionnée, Deploy #87 validé.
 - Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** sur `main`.
-- Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
-- Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
+- Live QA fournisseurs : le catalogue Hachette/Glénat, BnF Dublin Core/Intermarc, Open Library et Google Books sont isolés par fournisseur ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
+- Le cas de référence Sweet Revenge (EAN 9782344059814) est couvert par des fixtures locales et la résolution attendue est : Valhalla Bunker, tome 1, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm, Fabien Bedouel, avec couverture officielle Hachette.
+- Baseline historique annoncée pour l'import BDGest : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité** ; l'export privé n'est pas présent dans ce workspace et doit être rejoué avant de considérer cette branche comme revalidée. La fixture publique courante est suivie dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
 - Le suivi QA vivant est tenu dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 - **Campagne QA matérielle iOS en cours** : iPad + iPhone, navigateur réel puis PWA, exécutée test par test dans l'ordre `QA-IOS-001` à `QA-IOS-020`.
@@ -118,6 +121,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [API REST](docs/API.md) et [`openapi.yaml`](openapi.yaml)
 - [Import BDGest](docs/IMPORT-BDGEST.md)
 - [Métadonnées externes](docs/METADATA.md)
+- [Résolution d’identité et de couverture](docs/METADATA-RESOLUTION.md)
 - [Licence Premium](docs/PREMIUM-LICENSE.md)
 - [MCP 2026-07-28](docs/MCP.md)
 - [UI et quatre thèmes](docs/UI-THEMES.md)

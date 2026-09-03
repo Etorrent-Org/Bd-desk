@@ -13,6 +13,7 @@ flowchart LR
   META --> GB[Google Books]
   META --> OL[Open Library]
   META --> BNF[BnF SRU]
+  META --> HACH[Catalogue Hachette / Glénat]
   HTTP --> API[API REST]
   HTTP --> MCP[MCP 2026-07-28]
   HTTP --> WH[Webhooks HMAC]
@@ -32,6 +33,14 @@ flowchart LR
 - **Licence** : jeton signé HMAC SHA-256, contrôlé côté serveur.
 - **API** : clés aléatoires 192 bits, stockées uniquement sous forme de hash SHA-256.
 - **MCP** : endpoint HTTP stateless protégé par clé API et licence Premium.
+
+## Résolution des métadonnées et couvertures
+
+Le serveur centralise la résolution dans src/metadata.js. Les cinq fournisseurs sont appelés en parallèle avec timeout et échec isolé. Les réponses sont converties en candidats normalisés puis évaluées par identité ISBN/EAN, compatibilité éditoriale, provenance et confiance.
+
+Le résolveur interdit la sélection automatique d’un candidat qui ne porte pas l’identifiant demandé. Une couverture n’est éligible que si le même record apporte cet identifiant et une URL issue d’un fournisseur reconnu. Le client PWA ne choisit plus d’URL fournisseur à partir du seul titre : il appelle POST /api/albums/:id/cover/resolve, vérifie encore que l’image est exploitable avant affichage et limite les appels concurrents.
+
+La persistance distingue les couvertures user et machine. L’enrichissement éditorial remplit seulement les champs absents ; la décision de couverture utilise une migration pour rendre remplaçables les anciennes URLs Open Library mécaniques tout en protégeant les couvertures existantes saisies par le collectionneur. Chaque décision est auditée dans metadata_provenance.
 
 ## Interface adaptative universelle
 

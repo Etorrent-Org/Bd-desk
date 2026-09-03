@@ -11,8 +11,17 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 
 ## Tableau de suivi
 
+## Passe résolveur métadonnées / couverture — 2026-09-03
+
+État initial contrôlé avant modification : dépôt propre sur main à 75e57075a951e5c34fcf2daffa5312f71b79e1bf ; preview /api/health OK ; l’album Sweet revenge (9782344059814) portait une URL Open Library mécanique en 404 ; aucune branche de travail distante n’était encore créée.
+
+État local courant : branche fix/metadata-cover-pipeline ; commits locaux `bbc8706` et `41c5018` ; 64 tests automatisés verts ; fixtures Hachette/BnF validées ; couverture automatique refusée sans identifiant exact ; couverture utilisateur protégée ; pagination persistée ; cache serveur ISBN et PWA v29. La publication GitHub/PR n’est pas encore autorisée ; la validation réelle de l’export BDGest privé et la validation visuelle iPad/iPhone restent à faire.
+
 | Test | Validation | PR |
 |---|---|---|
+| Résolveur générique ISBN/EAN — métadonnées et couverture | ✅ Tests locaux : cinq fournisseurs isolés, identité exacte obligatoire, provenance et décision de couverture auditées. ⏳ CI, preview et PR à confirmer. | commits locaux `bbc8706` + `41c5018` |
+| Sweet Revenge — 9782344059814 | ✅ Fixtures et contrôle live : Valhalla Bunker, tome 1, Sweet revenge, Fabien Bedouel, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm et image Hachette. | commits locaux `bbc8706` + `41c5018` |
+| Couverture utilisateur et ancienne URL mécanique | ✅ Import/création sans génération Open Library ; migration machine remplaçable ; couverture user préservée par tests. | commit local `bbc8706` |
 | Suite automatisée — Node.js 22 | ✅ Refonte catalogue validée sur branche puis sur `main` : syntaxe frontend, `npm test` et couverture réussis — CI #148 et CI #149. | [PR #1](https://github.com/Etorrent-Org/Bd-desk/pull/1) fusionnée — merge `3d213285` |
 | Suite automatisée — Node.js 24 | ✅ Refonte catalogue validée sur branche puis sur `main` : syntaxe frontend, `npm test` et couverture réussis — CI #148 et CI #149. | [PR #1](https://github.com/Etorrent-Org/Bd-desk/pull/1) fusionnée — merge `3d213285` |
 | Couverture du code serveur | ✅ Seuils CI 95 % lignes / 90 % fonctions / 70 % branches respectés ; baseline mesurée : **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches**. | PR #1 + CI #149 ✅ |

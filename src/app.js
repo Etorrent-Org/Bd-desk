@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, seedIfEmpty, listAlbums, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection } from './db.js';
+import { openDatabase, seedIfEmpty, listAlbums, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
 import { canonicalIsbn } from './isbn.js';
 import { verifyLicense, hasFeature } from './license.js';
-import { fetchMetadata, mergeCandidates } from './metadata.js';
+import { fetchMetadata, resolveCandidates } from './metadata.js';
 import { handleMcp, validateMcpHttp, MCP_PROTOCOL_VERSION } from './mcp.js';
 import { dispatchWebhook } from './webhooks.js';
 
@@ -26,11 +26,23 @@ export function createBdDeskApp(config, opts={}){
   const db=opts.db||openDatabase(config.dbPath);
   if(opts.seed!==false) seedIfEmpty(db,config.seedCsvPath);
   const metadataFetcher=opts.fetchMetadataImpl||fetchMetadata;
+  const metadataCache=new Map();
+  const metadataCacheTtlMs=Number(config.metadataCacheTtlMs)>0?Number(config.metadataCacheTtlMs):300_000;
   const webhookDispatcher=opts.dispatchWebhookImpl||dispatchWebhook;
   const getLicense=()=>verifyLicense(db.prepare(`SELECT value FROM settings WHERE key='license'`).get()?.value,config.licenseSecret);
   const premium=(feature)=>hasFeature(getLicense(),feature);
   function authenticateApiKey(req){ const token=bearer(req)||req.headers['x-api-key']; if(!token)return false; const row=db.prepare('SELECT id FROM api_keys WHERE key_hash=? AND revoked_at IS NULL').get(hash(String(token))); if(row)db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(row.id); return Boolean(row); }
   async function emit(event,payload){ const hooks=db.prepare('SELECT * FROM webhooks WHERE enabled=1').all().filter(h=>JSON.parse(h.events).includes(event)||JSON.parse(h.events).includes('*')); for(const hook of hooks){ try{await webhookDispatcher(hook,event,payload,{secret:config.webhookSigningSecret});}catch{} } }
+  async function metadataFor(isbn){
+    const key=canonicalIsbn(isbn);
+    if(!key)return [];
+    const now=Date.now();
+    const cached=metadataCache.get(key);
+    if(cached&&cached.expiresAt>now)return cached.promise;
+    const promise=Promise.resolve(metadataFetcher(key,{googleBooksApiKey:config.googleBooksApiKey})).then(value=>Array.isArray(value)?value:[]);
+    metadataCache.set(key,{promise,expiresAt:now+metadataCacheTtlMs});
+    try{return await promise}catch(error){if(metadataCache.get(key)?.promise===promise)metadataCache.delete(key);throw error}
+  }
   const mcpCtx={dashboard:()=>dashboard(db),listAlbums:o=>listAlbums(db,o),series:()=>seriesSummary(db),updateAlbum:(id,p)=>updateAlbum(db,id,p)};
 
   return http.createServer(async(req,res)=>{
@@ -52,16 +64,18 @@ export function createBdDeskApp(config, opts={}){
       m=p.match(/^\/api\/loans\/(\d+)\/return$/);
       if(m&&req.method==='PATCH'){ const loan=db.prepare('SELECT * FROM loans WHERE id=?').get(m[1]); if(!loan)return json(res,404,{error:'Prêt introuvable'}); db.prepare('UPDATE loans SET returned_at=COALESCE(returned_at,CURRENT_TIMESTAMP) WHERE id=?').run(m[1]); db.prepare('INSERT INTO history(event,album_id,detail) VALUES(?,?,?)').run('loan_returned',loan.album_id,JSON.stringify({loanId:Number(m[1])})); await emit('loan.returned',{id:Number(m[1]),albumId:loan.album_id}); return json(res,200,{ok:true}); }
       if(p==='/api/albums'&&req.method==='GET'){ return json(res,200,listAlbums(db,{search:url.searchParams.get('search')||'',limit:url.searchParams.get('limit')||60,offset:url.searchParams.get('offset')||0,series:url.searchParams.get('series'),wishlist:url.searchParams.has('wishlist')?url.searchParams.get('wishlist')==='1':null,read:url.searchParams.has('read')?url.searchParams.get('read')==='1':null})); }
-      if(p==='/api/discover'&&req.method==='GET'){ const isbn=canonicalIsbn(url.searchParams.get('isbn')); if(!isbn)return json(res,400,{error:'ISBN valide requis'}); const candidates=await metadataFetcher(isbn,{googleBooksApiKey:config.googleBooksApiKey}); return json(res,200,{isbn,candidates}); }
+      if(p==='/api/discover'&&req.method==='GET'){ const isbn=canonicalIsbn(url.searchParams.get('isbn')); if(!isbn)return json(res,400,{error:'ISBN valide requis'}); const candidates=await metadataFor(isbn); const resolution=resolveCandidates(isbn,candidates); return json(res,200,{isbn,candidates,resolution}); }
       if(p==='/api/export/collection.json'&&req.method==='GET') return json(res,200,{exportedAt:new Date().toISOString(),albums:exportCollection(db)},{'content-disposition':'attachment; filename=bd-desk-collection.json'});
       if(p==='/api/editions/anomalies'&&req.method==='GET'){ if(!premium('advanced_stats'))return json(res,402,{error:'Premium requis',feature:'advanced_stats'}); return json(res,200,editionAnomalies(db)); }
       if(p==='/api/albums'&&req.method==='POST'){ const a=await jsonBody(req); a.isbn=canonicalIsbn(a.isbn); const created=createAlbum(db,a); await emit('album.created',created); return json(res,201,created); }
+      m=p.match(/^\/api\/albums\/(\d+)\/cover\/resolve$/);
+      if(m&&req.method==='POST'){ const a=getAlbum(db,m[1]); if(!a)return json(res,404,{error:'Album introuvable'}); if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'}); if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const decision=persistCoverDecision(db,a.id,resolution.cover); return json(res,200,{album:decision.album,resolution,candidates,changed:decision.updated,reason:decision.reason}); }
       m=p.match(/^\/api\/albums\/(\d+)$/);
       if(m&&req.method==='GET'){ const a=getAlbum(db,m[1]); return a?json(res,200,a):json(res,404,{error:'Album introuvable'}); }
       if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],await jsonBody(req)); await emit('album.updated',a); return json(res,200,a); }
       if(m&&req.method==='DELETE'){ const ok=deleteAlbum(db,m[1]); return json(res,ok?200:404,{ok}); }
       m=p.match(/^\/api\/metadata\/(\d+)\/enrich$/);
-      if(m&&req.method==='POST'){ if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'}); const a=getAlbum(db,m[1]); if(!a||!a.isbn)return json(res,400,{error:'ISBN requis'}); const candidates=await metadataFetcher(a.isbn,{googleBooksApiKey:config.googleBooksApiKey}); const merged=mergeCandidates(a,candidates); const updated=updateAlbum(db,a.id,{title:merged.album.title,publisher:merged.album.publisher,coverUrl:merged.album.coverUrl,description:merged.album.description}); for(const pr of merged.provenance)db.prepare('INSERT INTO metadata_provenance(album_id,field,source,confidence,value) VALUES(?,?,?,?,?)').run(a.id,pr.field,pr.source,pr.confidence,String(merged.album[pr.field]??'')); await emit('album.enriched',{album:updated,provenance:merged.provenance}); return json(res,200,{album:updated,candidates,provenance:merged.provenance}); }
+      if(m&&req.method==='POST'){ if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'}); const a=getAlbum(db,m[1]); if(!a||!a.isbn)return json(res,400,{error:'ISBN requis'}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const applied=applyMetadataResolution(db,a.id,resolution); await emit('album.enriched',{album:applied.album,provenance:applied.provenance,cover:applied.cover}); return json(res,200,{album:applied.album,candidates,resolution,provenance:applied.provenance,changed:applied.updatedFields.length>0||applied.cover.updated}); }
       if(p==='/api/import/bdgest'&&req.method==='POST'){ if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'}); const csv=await body(req); const result=importBdgest(db,csv); await emit('collection.imported',result); return json(res,200,result); }
       if(p==='/api/keys'&&req.method==='GET'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT id,name,prefix,created_at,last_used_at,revoked_at FROM api_keys ORDER BY id DESC').all()); }
       if(p==='/api/keys'&&req.method==='POST'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const {name='API'}=await jsonBody(req), key=randomKey(); const r=db.prepare('INSERT INTO api_keys(name,key_hash,prefix) VALUES(?,?,?)').run(name,hash(key),key.slice(0,12)); return json(res,201,{id:Number(r.lastInsertRowid),key,name,warning:'Cette clé ne sera plus affichée.'}); }
