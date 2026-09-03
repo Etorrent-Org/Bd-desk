@@ -4,7 +4,8 @@
 
 ```mermaid
 flowchart LR
-  PWA[Web/PWA\nUI unique + 4 thèmes] --> HTTP[Serveur HTTP Node]
+  PWA[Web/PWA\nUI unique + 4 thèmes] --> ADAPT[Couche adaptative\nphone / tablet / desktop]
+  ADAPT --> HTTP[Serveur HTTP Node]
   HTTP --> DB[(SQLite)]
   HTTP --> LIC[Licence Free/Premium]
   HTTP --> META[Moteur métadonnées]
@@ -31,6 +32,39 @@ flowchart LR
 - **API** : clés aléatoires 192 bits, stockées uniquement sous forme de hash SHA-256.
 - **MCP** : endpoint HTTP stateless protégé par clé API et licence Premium.
 
+## Interface adaptative universelle
+
+BD Desk ne maintient pas une application desktop et une seconde application mobile. Les écrans, routes, données, règles métier et composants restent communs ; seule **la composition visuelle** s'adapte au terminal.
+
+La détection est centralisée dans `public/adaptive-ui.js`. Elle n'utilise pas de sniffing `user-agent` et ne dépend donc ni d'Apple, ni d'Android, ni d'un navigateur particulier. Elle croise :
+
+- la largeur réellement disponible dans le viewport ;
+- le petit côté physique déclaré par l'écran ;
+- la présence d'un pointeur tactile / `maxTouchPoints` ;
+- l'orientation portrait ou paysage.
+
+Le résultat est exposé via `data-device="phone|tablet|desktop"` et `data-orientation="portrait|landscape"` sur le document. `public/adaptive-ui.css` applique ensuite les compositions appropriées.
+
+### Smartphone
+
+En portrait, BD Desk applique une interface dédiée :
+
+- header compact avec marque BD Desk, menu et recherche ouverte à la demande ;
+- navigation principale fixée en bas, avec action Ajouter centrale ;
+- collection en **2 colonnes** au lieu de réduire artificiellement la grille desktop ;
+- actions secondaires de page regroupées dans un menu compact ;
+- boutons et champs dimensionnés pour le tactile ;
+- safe areas iOS/Android intégrées aux espacements ;
+- tiroirs et modales sur toute la largeur utile.
+
+En paysage, le terminal reste en mode smartphone mais utilise davantage d'espace horizontal : grille plus dense, recherche complète et navigation basse plus compacte.
+
+### Tablette et desktop
+
+La tablette conserve la même application et bénéficie des règles responsive existantes selon la place disponible. Le desktop conserve sidebar, recherche permanente et densité maximale. Les quatre thèmes ne modifient jamais cette logique fonctionnelle.
+
+Cette séparation `fonctionnel commun` / `composition adaptative` permet d'ajouter d'autres formats d'écran sans dupliquer les routes, le backend ou les workflows métier.
+
 ## Frontière de confiance
 
 Les données d'usage (lecture, wishlist, prêt, commentaire, achat, dédicace) sont des données utilisateur. Le moteur d'enrichissement ne les remplace jamais. Les métadonnées externes ne remplissent que des champs vides dans la v1.
@@ -42,7 +76,7 @@ La QA fait partie de l'architecture de livraison et n'est pas traitée comme une
 ```mermaid
 flowchart LR
   CODE[Changement code / doc] --> CI[CI Node 22 + 24]
-  CI --> TESTS[Tests + couverture]
+  CI --> TESTS[Tests + couverture + syntaxe frontend]
   TESTS --> PREVIEW[Déploiement preview alwaysdata]
   PREVIEW --> HEALTH[/api/health]
   HEALTH --> LIVE[Contrôles live ciblés]
@@ -64,9 +98,11 @@ Principes :
 
 La validation mobile de release couvre **deux matériels distincts** :
 
-- **iPad** : Safari portrait/paysage puis PWA installée ;
-- **iPhone** : Safari portrait/paysage puis PWA installée.
+- **iPad** : navigateur réel portrait/paysage puis PWA installée ;
+- **iPhone** : navigateur réel portrait/paysage puis PWA installée.
 
 La campagne `QA-IOS-001` à `QA-IOS-020` couvre le chargement, la navigation tactile, les quatre thèmes, la fiche album, la recherche, l'ajout, le scanner ISBN/EAN avec caméra réelle, les interactions de collection et la reprise de la PWA. Les tests sont exécutés **strictement un par un** ; une anomalie est corrigée et retestée avant de passer au test suivant.
+
+Le contrat d'interface adaptative est également contrôlé automatiquement : présence des assets, détection sans `user-agent`, grille smartphone portrait à deux colonnes, navigation mobile et mise en cache PWA.
 
 La preview alwaysdata constitue l'environnement de validation iOS. Le workflow de déploiement synchronise les fichiers puis exécute le health check et les contrôles live. Le redémarrage automatique par API est un confort d'exploitation : son absence ne doit pas masquer le résultat réel des contrôles de disponibilité.
