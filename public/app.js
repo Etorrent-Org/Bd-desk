@@ -11,7 +11,7 @@ function nav(){
 }
 function go(r){state.route=r;history.replaceState(null,'',`#${r}`);$('.sidebar').classList.remove('open');nav();render()}
 function escapeHtml(s=''){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin==='machine'||a.coverOrigin==='machine';return src&&machine&&id?`/api/albums/${encodeURIComponent(id)}/cover/image?v=${encodeURIComponent(a.cover_checked_at||a.coverCheckedAt||a.updated_at||'1')}`:src}
+function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin==='machine'||a.coverOrigin==='machine';return src&&machine&&id?`/covers/${encodeURIComponent(id)}.jpeg`:src}
 function img(a,cls=''){const src=coverSrc(a);return src?`<img class="cover-image ${cls}" src="${escapeHtml(src)}" loading="lazy" alt="Couverture ${escapeHtml(a.title||a.series||'album')}">`:`<div class="placeholder">${escapeHtml(a.series||a.title||'BD')}</div>`}
 function coverCard(a){return `<article class="album-card" data-album="${a.id}"><div class="cover-wrap">${img(a)}</div><h3>${escapeHtml(a.series||a.title)}</h3><p class="series">${escapeHtml(a.number?`Tome ${a.number}`:a.title)}</p><p>${escapeHtml(a.title===a.series?'':a.title||'')}</p></article>`}
 function header(title,sub='',action=''){return `<div class="page-head"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${action}</div>`}

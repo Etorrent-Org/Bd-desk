@@ -85,6 +85,26 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
 
+      - name: Materialize trusted cover assets
+        run: |
+          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
+          COVER_DIR="$(mktemp -d)"
+          COVER_LIST="$(mktemp)"
+          SWEET_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          node -e 'const x=JSON.parse(process.argv[1]); for(const a of (x.items||[])) if(a.id&&a.cover_origin==="machine"&&a.cover_url) process.stdout.write(`${a.id}\t${a.cover_url}\n`)' "$ALBUMS" > "$COVER_LIST"
+          while IFS="$(printf '\t')" read -r id url; do
+            [ -z "$id" ] && continue
+            case "$url" in
+              https://openapi.bnf.fr/*|https://books.google.com/*|https://books.googleusercontent.com/*|https://images.hachette-livre.fr/*|https://www.images.hachette-livre.fr/*) ;;
+              *) continue ;;
+            esac
+            curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
+          done < "$COVER_LIST"
+          test -s "$COVER_DIR/$SWEET_ID.jpeg"
+          echo "Materialized $(find "$COVER_DIR" -type f -name '*.jpeg' | wc -l) trusted cover asset(s)."
+          SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET/public/covers'"
+          SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e rsync -az --delete "$COVER_DIR/" "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/public/covers/"
+
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
         run: |
@@ -156,17 +176,32 @@ jobs:
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
-      - name: Verify same-origin cover proxy
+      - name: Verify live trusted cover asset
         run: |
           ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
           ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
             -D /tmp/bd-desk-cover-headers \
-            "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/image?v=${GITHUB_SHA}" \
+            "$PREVIEW_URL/covers/$ALBUM_ID.jpeg?v=${GITHUB_SHA}" \
             -o /tmp/bd-desk-cover-image
           grep -i '^content-type: image/' /tmp/bd-desk-cover-headers >/dev/null
           test -s /tmp/bd-desk-cover-image
-          echo "Same-origin cover proxy verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
+          echo "Live trusted cover asset verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
+
+      - name: Verify same-origin cover proxy when process is restarted
+        run: |
+          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
+          ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          if curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors \
+            -D /tmp/bd-desk-cover-proxy-headers \
+            "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/image?v=${GITHUB_SHA}" \
+            -o /tmp/bd-desk-cover-proxy-image; then
+            grep -i '^content-type: image/' /tmp/bd-desk-cover-proxy-headers >/dev/null
+            test -s /tmp/bd-desk-cover-proxy-image
+            echo "Same-origin cover proxy verified for Sweet Revenge."
+          else
+            echo '::warning::Same-origin cover proxy is not active yet; static trusted cover asset is the live fallback.'
+          fi
 
       - name: Verify live experience V3 and cover resolver
         run: |

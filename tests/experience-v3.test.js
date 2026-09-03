@@ -21,7 +21,7 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   assert.match(html,/bd-desk-build" content="2026\.09\.03\.7"/);
   assert.match(app,/sw\.js\?v=20260903-7/);
   assert.match(app,/updateViaCache:'none'/);
-  assert.match(app,/\/cover\/image\?v=/);
+  assert.match(app,/\/covers\/\$\{encodeURIComponent\(id\)\}\.jpeg/);
   assert.match(sw,/bd-desk-v30/);
   assert.match(sw,/app\.js\?v=20260903-7/);
 });
