@@ -99,6 +99,16 @@ jobs:
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
+      - name: Verify live experience V3
+        run: |
+          HTML="$(curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/?build=20260903-3")"
+          printf '%s' "$HTML" | grep -F 'experience-v3.css?v=20260903-3' >/dev/null
+          printf '%s' "$HTML" | grep -F 'experience-v3.js?v=20260903-3' >/dev/null
+          printf '%s' "$HTML" | grep -F 'Collection studio' >/dev/null
+          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/experience-v3.css?v=20260903-3" | grep -F '.editorial-cover' >/dev/null
+          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/experience-v3.js?v=20260903-3" | grep -F 'BDDeskExperience' >/dev/null
+          echo 'Live BD Desk experience V3 verified.'
+
       - name: Verify live metadata normalization
         run: |
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
