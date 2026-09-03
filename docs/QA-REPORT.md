@@ -2,6 +2,8 @@
 
 Date : 2026-09-01
 
+> **Document figé de référence v1.0.0.** Le suivi QA courant, mis à jour au fur et à mesure des tests et corrections, est tenu dans [`QA-TRACKING.md`](QA-TRACKING.md).
+
 ## Synthèse
 
 | Axe | Résultat |
@@ -98,12 +100,7 @@ Repository actif : `Etorrent-Org/Bd-desk`, branche `main`, public.
 
 URL cible : `https://tatoune.alwaysdata.net/`.
 
-Le code de déploiement est prêt. L'activation dépend encore de deux réglages de compte qui ne peuvent pas être effectués par le connecteur GitHub :
-
-1. ajouter dans GitHub Actions le secret `ALWAYSDATA_PASSWORD` sans l'exposer dans le chat ;
-2. configurer une fois le site alwaysdata en Node.js 24 avec la commande documentée dans `docs/DEPLOYMENT-ALWAYSDATA.md`.
-
-Après cela, chaque évolution UI ciblée est synchronisée automatiquement pour contrôle sur iPad.
+À la date de ce snapshot v1.0.0, l'activation de la preview était encore en cours. Son état actuel est suivi dans [`QA-TRACKING.md`](QA-TRACKING.md), afin de ne pas réécrire l'historique de cette validation.
 
 ## Licence Premium — limite à connaître
 
