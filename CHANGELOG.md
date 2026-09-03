@@ -6,6 +6,7 @@
 - Mise à jour du suivi CI : **43/43 tests** réussis, CI Node.js 22/24 verte, couverture à **99,23 % lignes**, **96,02 % fonctions** et **75,49 % branches**.
 - Validation live de la preview alwaysdata : synchronisation SSH, `/api/health` et normalisation BnF réussies dans le déploiement #79.
 - Le redémarrage automatique via l'API alwaysdata devient non bloquant : un redémarrage manuel reste possible sans empêcher les contrôles live.
+- Lancement d'une campagne QA matérielle **iPad + iPhone**, Safari puis PWA, structurée en 20 tests `QA-IOS-001` à `QA-IOS-020` et exécutée strictement un test à la fois.
 - Harmonisation du README, de l'architecture et de la documentation QA avec l'état réellement validé.
 
 ## 1.0.1 — 2026-09-02
