@@ -80,6 +80,7 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "test -s '$ALWAYSDATA_TARGET/public/cover-sources.js'"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'openapi.bnf.fr/couverture' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
 
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
@@ -121,6 +122,7 @@ jobs:
           COVER_CODE="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$COVER_JS")"
           printf '%s' "$COVER_CODE" | grep -F 'openapi.bnf.fr/couverture' >/dev/null
           printf '%s' "$COVER_CODE" | grep -F 'covers.openlibrary.org' >/dev/null
+          printf '%s' "$COVER_CODE" | grep -F 'media.hachette.fr/imgArticle/GLENAT' >/dev/null
           echo 'Live BD Desk experience V3 and real cover resolver verified.'
 
       - name: Verify live metadata normalization
@@ -128,3 +130,10 @@ jobs:
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
           node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
           echo 'Live metadata normalization verified.'
+
+      - name: Verify Sweet Revenge official cover source
+        run: |
+          COVER_URL='https://media.hachette.fr/imgArticle/GLENAT/2024/9782344059814-001-X.jpeg?source=web'
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$COVER_URL" -o /tmp/sweet-revenge-cover.jpeg
+          test -s /tmp/sweet-revenge-cover.jpeg
+          echo "Sweet Revenge official cover source verified: $(wc -c < /tmp/sweet-revenge-cover.jpeg) bytes."
