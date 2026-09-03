@@ -6,9 +6,11 @@ const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
 test('experience v3 is wired after legacy visual layers',async()=>{
   const html=await read('public/index.html');
-  assert.match(html,/experience-v3\.css\?v=20260903-3/);
-  assert.match(html,/experience-v3\.js\?v=20260903-3/);
+  assert.match(html,/experience-v3\.css\?v=\d{8}-\d+/);
+  assert.match(html,/experience-v3\.js\?v=\d{8}-\d+/);
+  assert.match(html,/cover-sources\.js\?v=\d{8}-\d+/);
   assert.ok(html.indexOf('catalog-ui.css')<html.indexOf('experience-v3.css'));
+  assert.ok(html.indexOf('experience-v3.js')<html.indexOf('cover-sources.js'));
   assert.match(html,/Collection studio/);
 });
 
@@ -27,6 +29,15 @@ test('cover experience is progressive and avoids user-agent sniffing',async()=>{
   assert.match(js,/AUTO_LIMIT=14/);
   assert.match(js,/BDDeskExperience/);
   assert.doesNotMatch(js,/userAgent/i);
+});
+
+test('real cover resolver prefers BnF then Open Library and persists the result',async()=>{
+  const js=await read('public/cover-sources.js');
+  assert.match(js,/openapi\.bnf\.fr\/couverture/);
+  assert.match(js,/covers\.openlibrary\.org/);
+  assert.ok(js.indexOf("source:'bnf'")<js.indexOf("source:'open-library'"));
+  assert.match(js,/method:'PATCH'/);
+  assert.match(js,/coverUrl:candidate\.url/);
 });
 
 test('failed covers fall back to editorial album identity, not generic Couverture',async()=>{
