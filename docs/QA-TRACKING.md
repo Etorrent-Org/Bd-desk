@@ -18,7 +18,7 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 | Couverture du code serveur | ✅ **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches** ; seuils CI respectés (95 / 90 / 70) | Direct `main` — [`6acc9d1`](https://github.com/Etorrent-Org/Bd-desk/commit/6acc9d14423ebfb140e146ea3318dd6c882980ae) |
 | Smoke test frontend / fichiers PWA | ✅ `public/index.html`, `public/app.js`, `public/styles.css` présents et non vides — CI #100 | Direct `main` — [`6acc9d1`](https://github.com/Etorrent-Org/Bd-desk/commit/6acc9d14423ebfb140e146ea3318dd6c882980ae) |
 | Fiche album — conservation des données personnelles | ✅ Test automatisé : enrichissement éditorial sans écrasement du prix d'achat / commentaire | Direct `main` — [`8e64483`](https://github.com/Etorrent-Org/Bd-desk/commit/8e6448398b9fd5c4c7bb28784fd53bb1d051c084) |
-| Fiche album — création riche | ✅ Test automatisé : couverture, éditeur, collection, auteur, résumé et format persistés | Direct `main` — [`8e64483`](https://github.com/Etorrent-Org/Bd-desk/commit/8e6448398fd53bb1d051c084) |
+| Fiche album — création riche | ✅ Test automatisé : couverture, éditeur, collection, auteur, résumé et format persistés | Direct `main` — [`8e64483`](https://github.com/Etorrent-Org/Bd-desk/commit/8e6448398b9fd5c4c7bb28784fd53bb1d051c084) |
 | CRUD albums / filtres / export | ✅ Tests automatisés réussis | Direct `main` — CI #100 |
 | Premium — licence, import, stats, enrichissement, API, webhooks, MCP | ✅ Protections serveur et activation validées par tests automatisés | Direct `main` — CI #100 |
 | MCP 2026-07-28 | ✅ Discovery, outils, exécution, erreurs JSON-RPC, headers et origin validés | Direct `main` — CI #100 |
