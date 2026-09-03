@@ -8,7 +8,7 @@
   const canonical=value=>text(value).replace(/[^0-9X]/gi,'').toUpperCase();
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
   const hostId=host=>host?.dataset?.album||host?.dataset?.detailAlbum||null;
-  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin==='machine'||album?.coverOrigin==='machine';return src&&machine&&id?'/covers/'+encodeURIComponent(id)+'.jpeg':src||null};
+  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin==='machine'||album?.coverOrigin==='machine';return src&&machine&&id?'/covers/'+encodeURIComponent(id)+'.svg':src||null};
 
   function sourcesFor(isbn){
     const n=canonical(isbn);

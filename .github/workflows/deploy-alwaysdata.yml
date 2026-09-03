@@ -99,9 +99,17 @@ jobs:
               *) continue ;;
             esac
             curl -fsSL --connect-timeout 10 --max-time 45 --retry 3 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
+            if [ -s "$COVER_DIR/$id.jpeg" ]; then
+              {
+                printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1867"><image width="1400" height="1867" preserveAspectRatio="none" href="data:image/jpeg;base64,'
+                base64 -w 0 "$COVER_DIR/$id.jpeg"
+                printf '%s' '"/></svg>'
+              } > "$COVER_DIR/$id.svg"
+              rm "$COVER_DIR/$id.jpeg"
+            fi
           done < "$COVER_LIST"
-          test -s "$COVER_DIR/$SWEET_ID.jpeg"
-          echo "Materialized $(find "$COVER_DIR" -type f -name '*.jpeg' | wc -l) trusted cover asset(s)."
+          test -s "$COVER_DIR/$SWEET_ID.svg"
+          echo "Materialized $(find "$COVER_DIR" -type f -name '*.svg' | wc -l) trusted cover asset(s)."
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET/public/covers'"
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e rsync -az --delete "$COVER_DIR/" "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/public/covers/"
 
@@ -182,10 +190,11 @@ jobs:
           ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
             -D /tmp/bd-desk-cover-headers \
-            "$PREVIEW_URL/covers/$ALBUM_ID.jpeg?v=${GITHUB_SHA}" \
+            "$PREVIEW_URL/covers/$ALBUM_ID.svg?v=${GITHUB_SHA}" \
             -o /tmp/bd-desk-cover-image
           test -s /tmp/bd-desk-cover-image
-          file -b --mime-type /tmp/bd-desk-cover-image | grep -E '^image/(jpeg|png|webp)$' >/dev/null
+          grep -i '^content-type: image/svg+xml' /tmp/bd-desk-cover-headers >/dev/null
+          file -b --mime-type /tmp/bd-desk-cover-image | grep -F 'image/svg+xml' >/dev/null
           echo "Live trusted cover asset verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
 
       - name: Verify same-origin cover proxy when process is restarted
