@@ -36,8 +36,8 @@ test('real cover resolver prefers BnF, enriches from discover, supports Glenat a
   assert.match(js,/openapi\.bnf\.fr\/couverture/);
   assert.match(js,/covers\.openlibrary\.org/);
   assert.match(js,/\/api\/discover\?isbn=/);
-  assert.match(js,/media\.hachette\.fr\/imgArticle\/GLENAT/);
-  assert.match(js,/gl[eé]nat\|comix\\s\*buro/i);
+  assert.ok(js.includes('media.hachette.fr/imgArticle/GLENAT'));
+  assert.ok(js.includes("source:'glenat-hachette'"));
   assert.ok(js.indexOf("source:'bnf'")<js.indexOf("source:'open-library'"));
   assert.match(js,/method:'PATCH'/);
   assert.match(js,/coverUrl:candidate\.url/);
