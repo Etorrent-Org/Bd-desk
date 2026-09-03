@@ -4,9 +4,10 @@ import { readFile } from 'node:fs/promises';
 
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
-test('index wires the adaptive smartphone layer',async()=>{
+test('index wires the adaptive smartphone and catalog layers',async()=>{
   const html=await read('public/index.html');
   assert.match(html,/adaptive-ui\.css\?v=/);
+  assert.match(html,/catalog-ui\.css\?v=/);
   assert.match(html,/adaptive-ui\.js\?v=/);
   assert.match(html,/id="mobileSearchBtn"/);
   assert.match(html,/class="mobile-brand"/);
@@ -21,18 +22,30 @@ test('adaptive UI classifies by capabilities and viewport, not user-agent sniffi
   assert.doesNotMatch(js,/userAgent/i);
 });
 
-test('phone portrait uses a dedicated two-column collection and mobile navigation',async()=>{
-  const css=await read('public/adaptive-ui.css');
-  assert.match(css,/data-device="phone"/);
-  assert.match(css,/data-orientation="portrait"/);
-  assert.match(css,/\.album-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(css,/\.bottom-nav\{position:fixed/);
-  assert.match(css,/\.mobile-more-actions/);
+test('phone portrait keeps dedicated two-column navigation and catalog density',async()=>{
+  const adaptive=await read('public/adaptive-ui.css');
+  const catalog=await read('public/catalog-ui.css');
+  assert.match(adaptive,/data-device="phone"/);
+  assert.match(adaptive,/data-orientation="portrait"/);
+  assert.match(adaptive,/\.bottom-nav\{position:fixed/);
+  assert.match(adaptive,/\.mobile-more-actions/);
+  assert.match(catalog,/grid-template-columns:repeat\(2,clamp\(128px,34vw,148px\)\)/);
+  assert.match(catalog,/\.album-card>p:last-child\{display:none\}/);
 });
 
-test('service worker caches adaptive assets',async()=>{
+test('tablet and desktop expose denser visual catalog grids',async()=>{
+  const css=await read('public/catalog-ui.css');
+  assert.match(css,/data-device="tablet"/);
+  assert.match(css,/repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(css,/repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(css,/data-device="desktop"/);
+  assert.match(css,/minmax\(128px,154px\)/);
+});
+
+test('service worker caches adaptive catalog assets',async()=>{
   const sw=await read('public/sw.js');
-  assert.match(sw,/bd-desk-v23/);
+  assert.match(sw,/bd-desk-v24/);
   assert.match(sw,/adaptive-ui\.css/);
+  assert.match(sw,/catalog-ui\.css/);
   assert.match(sw,/adaptive-ui\.js/);
 });
