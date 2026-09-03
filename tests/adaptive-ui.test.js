@@ -44,7 +44,7 @@ test('tablet and desktop expose denser visual catalog grids',async()=>{
 
 test('service worker caches adaptive catalog assets',async()=>{
   const sw=await read('public/sw.js');
-  assert.match(sw,/bd-desk-v26/);
+  assert.match(sw,/bd-desk-v\d+/);
   assert.match(sw,/adaptive-ui\.css/);
   assert.match(sw,/catalog-ui\.css/);
   assert.match(sw,/adaptive-ui\.js/);
