@@ -133,15 +133,13 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 ```text
 src/                    serveur, données, licence, MCP, métadonnées
 public/                 PWA, design system, adaptation responsive et grille catalogue
-a scripts/              seed, validation, licences, tests API externes
+scripts/                seed, validation, licences, tests API externes
 tests/                  tests automatisés et fixtures synthétiques
 deploy/                 lanceurs d'environnements de preview
 docs/                   documentation produit, technique et suivi QA
 integrations/            guides n8n, Make, Notion, MCP
 .github/workflows/       CI, Live QA et déploiement preview
 ```
-
-> Note : le dossier réel est `scripts/` ; la ligne ci-dessus est descriptive de la structure du dépôt.
 
 ## Données privées
 
