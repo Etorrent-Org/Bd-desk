@@ -16,11 +16,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node --check public/adaptive-ui.js && node --check public/experience-v3.js && node --check public/cover-sources.js && node --check public/detail-enhance.js && node --check public/cover-fallback.js
+      - run: for file in src/*.js public/*.js; do node --check "$file"; done
       - run: npm test
       - run: npm run test:coverage
   external-api-contract:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

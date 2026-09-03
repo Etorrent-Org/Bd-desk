@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseBdgestCsv, toIsoDate } from './csv.js';
-import { openLibraryCover } from './metadata.js';
+import { isMechanicalOpenLibraryCover } from './metadata.js';
 
 export function openDatabase(dbPath=':memory:') {
   if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(dbPath), {recursive:true});
@@ -20,8 +20,10 @@ export function migrate(db) {
       first_edition INTEGER DEFAULT 0, legal_deposit TEXT, print_date TEXT, market_value REAL,
       condition TEXT, purchase_date TEXT, purchase_price REAL, note TEXT, writer TEXT, artist TEXT,
       wishlist INTEGER DEFAULT 0, for_sale INTEGER DEFAULT 0, format TEXT, followed INTEGER DEFAULT 0,
+      page_count INTEGER,
       read INTEGER DEFAULT 0, read_date TEXT, signed INTEGER DEFAULT 0, signed_date TEXT, comment TEXT,
-      table_name TEXT, cover_url TEXT, description TEXT, source TEXT DEFAULT 'manual',
+      table_name TEXT, cover_url TEXT, cover_origin TEXT, cover_source TEXT, cover_confidence REAL,
+      cover_checked_at TEXT, cover_decision TEXT, description TEXT, source TEXT DEFAULT 'manual',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     DROP INDEX IF EXISTS idx_albums_isbn;
@@ -49,6 +51,31 @@ export function migrate(db) {
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
+  ensureAlbumColumn(db, 'cover_origin', 'TEXT');
+  ensureAlbumColumn(db, 'cover_source', 'TEXT');
+  ensureAlbumColumn(db, 'cover_confidence', 'REAL');
+  ensureAlbumColumn(db, 'cover_checked_at', 'TEXT');
+  ensureAlbumColumn(db, 'cover_decision', 'TEXT');
+  ensureAlbumColumn(db, 'page_count', 'INTEGER');
+  db.exec(`
+    UPDATE albums
+       SET cover_origin='machine', cover_source='open-library', cover_confidence=0.35,
+           cover_decision='legacy-generated'
+     WHERE cover_url LIKE 'https://covers.openlibrary.org/b/isbn/%'
+       AND (cover_origin IS NULL OR cover_origin='');
+    UPDATE albums
+       SET cover_origin='user', cover_source=COALESCE(cover_source,'legacy'),
+           cover_confidence=COALESCE(cover_confidence,1), cover_decision=COALESCE(cover_decision,'legacy-preserved')
+     WHERE cover_url IS NOT NULL AND TRIM(cover_url)<>''
+       AND (cover_origin IS NULL OR cover_origin='');
+  `);
+}
+
+function ensureAlbumColumn(db, name, definition) {
+  const columns = db.prepare('PRAGMA table_info(albums)').all();
+  if (!columns.some(column => column.name === name)) {
+    db.exec('ALTER TABLE albums ADD COLUMN ' + name + ' ' + definition);
+  }
 }
 
 const INSERT = `INSERT INTO albums
@@ -65,7 +92,7 @@ export function importBdgest(db, text) {
   try {
     for (const a of rows) {
       try {
-        stmt.run(a.bdgestId,a.isbn,a.series,a.number,a.numberAlt,a.title,a.publisher,a.collection,a.firstEdition,a.legalDeposit,a.printDate,a.marketValue,a.condition,toIsoDate(a.purchaseDate)||a.purchaseDate,a.purchasePrice,a.note,a.writer,a.artist,a.wishlist,a.forSale,a.format,a.followed,a.read,toIsoDate(a.readDate)||a.readDate,a.signed,toIsoDate(a.signedDate)||a.signedDate,a.comment,a.tableName,openLibraryCover(a.isbn),a.source);
+        stmt.run(a.bdgestId,a.isbn,a.series,a.number,a.numberAlt,a.title,a.publisher,a.collection,a.firstEdition,a.legalDeposit,a.printDate,a.marketValue,a.condition,toIsoDate(a.purchaseDate)||a.purchaseDate,a.purchasePrice,a.note,a.writer,a.artist,a.wishlist,a.forSale,a.format,a.followed,a.read,toIsoDate(a.readDate)||a.readDate,a.signed,toIsoDate(a.signedDate)||a.signedDate,a.comment,a.tableName,null,a.source);
         imported++;
       } catch (e) {
         skipped++;
@@ -100,8 +127,9 @@ export function listAlbums(db, {search='',limit=60,offset=0,series=null,wishlist
 export function getAlbum(db,id) { return db.prepare('SELECT * FROM albums WHERE id=?').get(id); }
 
 export function createAlbum(db,a) {
-  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,description,print_date,format,condition,purchase_date,comment,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,a.coverUrl||openLibraryCover(a.isbn),a.description||null,a.printDate||a.publishedDate||null,a.format||null,a.condition||null,a.purchaseDate||null,a.comment||null,a.source||'manual');
+  const coverUrl=String(a.coverUrl||'').trim()||null;
+  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,cover_origin,cover_source,cover_confidence,cover_checked_at,cover_decision,description,print_date,format,page_count,condition,purchase_date,comment,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,coverUrl,coverUrl?'user':null,coverUrl?'manual':null,coverUrl?1:null,coverUrl?new Date().toISOString():null,coverUrl?'user-selected':null,a.description||null,a.printDate||a.publishedDate||null,a.format||null,a.pageCount??null,a.condition||null,a.purchaseDate||null,a.comment||null,a.source||'manual');
   db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('album_created',r.lastInsertRowid,JSON.stringify({title:a.title}));
   return getAlbum(db,r.lastInsertRowid);
 }
@@ -110,21 +138,103 @@ export function updateAlbum(db,id,patch) {
   const allowed={
     isbn:'isbn',title:'title',series:'series',number:'number',numberAlt:'number_alt',publisher:'publisher',collectionName:'collection_name',
     writer:'writer',artist:'artist',read:'read',readDate:'read_date',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',
-    marketValue:'market_value',purchasePrice:'purchase_price',purchaseDate:'purchase_date',condition:'condition',note:'note',format:'format',
+    marketValue:'market_value',purchasePrice:'purchase_price',purchaseDate:'purchase_date',condition:'condition',note:'note',format:'format',pageCount:'page_count',
     signed:'signed',signedDate:'signed_date',legalDeposit:'legal_deposit',printDate:'print_date',coverUrl:'cover_url',description:'description',
     comment:'comment',source:'source'
   };
   const booleanFields=new Set(['read','wishlist','forSale','firstEdition','signed']);
   const sets=[],vals=[];
   for (const [k,col] of Object.entries(allowed)) if (k in patch) {
+    if (k === 'coverUrl') continue;
     sets.push(`${col}=?`);
     vals.push(booleanFields.has(k)?(patch[k]?1:0):patch[k]);
+  }
+  if ('coverUrl' in patch) {
+    const coverUrl=String(patch.coverUrl||'').trim()||null;
+    sets.push('cover_url=?','cover_origin=?','cover_source=?','cover_confidence=?','cover_checked_at=CURRENT_TIMESTAMP','cover_decision=?');
+    vals.push(coverUrl,'user','manual',coverUrl?1:null,coverUrl?'user-selected':'user-cleared');
   }
   if (!sets.length) return getAlbum(db,id);
   sets.push('updated_at=CURRENT_TIMESTAMP');
   db.prepare(`UPDATE albums SET ${sets.join(',')} WHERE id=?`).run(...vals,id);
   db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('album_updated',id,JSON.stringify(Object.keys(patch)));
   return getAlbum(db,id);
+}
+
+const MACHINE_COVER_HOSTS = new Set([
+  'openapi.bnf.fr',
+  'covers.openlibrary.org',
+  'books.google.com',
+  'books.googleusercontent.com',
+  'images.hachette-livre.fr'
+]);
+
+function trustedMachineCover(url) {
+  try {
+    const parsed=new URL(url);
+    return parsed.protocol==='https:' && (MACHINE_COVER_HOSTS.has(parsed.hostname) || parsed.hostname.endsWith('.hachette-livre.fr'));
+  } catch {
+    return false;
+  }
+}
+
+function recordProvenance(db, albumId, entries=[]) {
+  const stmt=db.prepare('INSERT INTO metadata_provenance(album_id,field,source,confidence,value) VALUES(?,?,?,?,?)');
+  for(const entry of entries) {
+    if(!entry?.field||!entry?.source)continue;
+    stmt.run(albumId,entry.field,entry.source,Number(entry.confidence)||0,String(entry.value??''));
+  }
+}
+
+export function persistCoverDecision(db,id,selection={}) {
+  const current=getAlbum(db,id);
+  if(!current)return {updated:false,reason:'album-not-found',album:null};
+  if(current.cover_origin==='user')return {updated:false,reason:'preserve-user-cover',album:current};
+  if(!selection.url||!trustedMachineCover(selection.url)) {
+    if(current.cover_origin!=='user')db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run(selection.decision||'fallback-editorial',id);
+    return {updated:false,reason:selection.reason||'no-trusted-cover',album:getAlbum(db,id)};
+  }
+  const currentUrl=current.cover_url;
+  const oldIsMechanical=isMechanicalOpenLibraryCover(currentUrl,current.isbn);
+  const replaceable=!currentUrl||current.cover_origin==='machine'||oldIsMechanical;
+  if(!replaceable)return {updated:false,reason:'preserve-existing-cover',album:current};
+  const confidence=Number(selection.confidence)||0;
+  if(current.cover_origin==='machine'&&Number(current.cover_confidence||0)>confidence&&currentUrl!==selection.url) {
+    return {updated:false,reason:'preserve-higher-confidence-cover',album:current};
+  }
+  db.prepare('UPDATE albums SET cover_url=?,cover_origin=?,cover_source=?,cover_confidence=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(selection.url,'machine',selection.source||'metadata-resolver',confidence,selection.decision||'verified-source',id);
+  recordProvenance(db,id,[{field:'coverUrl',source:selection.source||'metadata-resolver',confidence,value:selection.url}]);
+  return {updated:true,reason:'machine-cover-selected',album:getAlbum(db,id)};
+}
+
+export function applyMetadataResolution(db,id,resolution={}) {
+  const current=getAlbum(db,id);
+  if(!current)return {album:null,updatedFields:[],cover:{updated:false,reason:'album-not-found',album:null},provenance:[]};
+  const columns={
+    title:'title',
+    publisher:'publisher',
+    series:'series',
+    number:'number',
+    collectionName:'collection_name',
+    printDate:'print_date',
+    description:'description',
+    writer:'writer',
+    artist:'artist',
+    pageCount:'page_count',
+    format:'format'
+  };
+  const patch={};
+  const provenance=[];
+  for(const [field,column] of Object.entries(columns)) {
+    const selected=resolution.fields?.[field];
+    if(!selected||current[column]!==null&&current[column]!==undefined&&String(current[column]).trim()!=='')continue;
+    patch[field]=selected.value;
+    provenance.push({field,source:selected.source,confidence:selected.confidence,value:selected.value});
+  }
+  if(Object.keys(patch).length)updateAlbum(db,id,patch);
+  recordProvenance(db,id,provenance);
+  const cover=persistCoverDecision(db,id,resolution.cover||{});
+  return {album:cover.album||getAlbum(db,id),updatedFields:Object.keys(patch),cover,provenance};
 }
 
 export function deleteAlbum(db,id) {
@@ -171,7 +281,7 @@ export function editionAnomalies(db) {
 }
 
 export function exportCollection(db) {
-  return db.prepare(`SELECT id,bdgest_id,isbn,series,number,number_alt,title,publisher,collection_name,first_edition,legal_deposit,print_date,market_value,condition,purchase_date,purchase_price,note,writer,artist,wishlist,for_sale,format,followed,read,read_date,signed,signed_date,comment,cover_url,description,source,created_at,updated_at FROM albums ORDER BY series COLLATE NOCASE,CAST(number AS REAL),title COLLATE NOCASE`).all();
+  return db.prepare(`SELECT id,bdgest_id,isbn,series,number,number_alt,title,publisher,collection_name,first_edition,legal_deposit,print_date,market_value,condition,purchase_date,purchase_price,note,writer,artist,wishlist,for_sale,format,page_count,followed,read,read_date,signed,signed_date,comment,cover_url,cover_origin,cover_source,cover_confidence,cover_checked_at,cover_decision,description,source,created_at,updated_at FROM albums ORDER BY series COLLATE NOCASE,CAST(number AS REAL),title COLLATE NOCASE`).all();
 }
 
 export function peopleSummary(db) {

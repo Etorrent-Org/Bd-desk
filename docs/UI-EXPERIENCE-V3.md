@@ -8,7 +8,7 @@ La V3 remplace l'empilement visuel précédent par une couche d'expérience coh�
 
 - **La couverture est l'objet principal** : grandes vignettes, ratio album constant, hiérarchie titre/série/tome lisible.
 - **Aucun fallback générique « Couverture »** : si aucune image exploitable n'est disponible, BD Desk génère une couverture éditoriale typographique déterministe à partir de la fiche.
-- **Récupération progressive** : les couvertures manquantes visibles peuvent être recherchées via les fournisseurs existants, avec concurrence et nombre d'appels limités.
+- **Récupération progressive** : les couvertures manquantes visibles passent par le résolveur serveur ISBN/EAN, avec concurrence client limitée, preuve de source et fallback éditorial déterministe.
 - **Densité adaptée** : 2 colonnes sur smartphone portrait, 4 environ sur tablette, 5 à 6 sur desktop selon l'espace disponible.
 - **Même structure fonctionnelle** dans tous les thèmes : seules les variables visuelles et certains détails graphiques changent.
 
@@ -18,7 +18,7 @@ Accueil, collection, albums, séries, auteurs, éditeurs, wishlist, prêts, hist
 
 ## Couvertures
 
-`experience-v3.js` transforme les placeholders existants en couvertures éditoriales. Lorsqu'un album visible possède un ISBN mais pas de couverture exploitable, une recherche progressive est tentée via `/api/discover`. Une URL valide peut être mémorisée dans le champ éditorial `coverUrl` uniquement lorsqu'il était vide.
+`experience-v3.js` transforme les placeholders existants en couvertures éditoriales. Lorsqu’un album visible possède un ISBN mais pas de couverture exploitable, `cover-sources.js` appelle POST /api/albums/:id/cover/resolve. Le serveur exige l’identifiant exact et une source reconnue ; le client vérifie aussi que l’image est exploitable avant affichage. Une URL Open Library construite mécaniquement n’est jamais enregistrée.
 
 La donnée collectionneur (état, prix d'achat, dédicace, notes, possession) n'est jamais modifiée par cette logique.
 
@@ -28,7 +28,7 @@ La V3 s'appuie sur la classification existante `phone / tablet / desktop` et ne 
 
 ## Cache
 
-La V3 utilise le cache PWA `bd-desk-v26` et le build `2026.09.03.3` afin d'éviter de resservir l'ancienne interface sur iPad/iPhone.
+La V3 utilise le cache PWA bd-desk-v29 et le build 2026.09.03.6 afin d’éviter de resservir une ancienne couche de résolution sur iPad/iPhone.
 
 ## QA
 
@@ -37,6 +37,6 @@ La CI vérifie :
 - la syntaxe JS de la couche V3 ;
 - le branchement CSS/JS dans `index.html` ;
 - la présence des quatre thèmes ;
-- le fallback éditorial ;
-- le cache PWA V26 ;
+- le fallback éditorial et la délégation au résolveur API ;
+- le cache PWA V29 ;
 - la suite fonctionnelle et la couverture existantes.

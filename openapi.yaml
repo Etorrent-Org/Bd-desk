@@ -21,12 +21,18 @@ components:
         number: {type: [string, 'null']}
         title: {type: string}
         publisher: {type: [string, 'null']}
+        page_count: {type: [integer, 'null'], minimum: 0}
         writer: {type: [string, 'null']}
         artist: {type: [string, 'null']}
         read: {type: integer, enum: [0, 1]}
         wishlist: {type: integer, enum: [0, 1]}
         first_edition: {type: integer, enum: [0, 1]}
         cover_url: {type: [string, 'null']}
+        cover_origin: {type: [string, 'null'], enum: [user, machine, null]}
+        cover_source: {type: [string, 'null']}
+        cover_confidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+        cover_checked_at: {type: [string, 'null']}
+        cover_decision: {type: [string, 'null']}
     Error:
       type: object
       properties:
@@ -182,6 +188,14 @@ paths:
       responses:
         '200': {description: Candidats de métadonnées}
         '400': {description: ISBN invalide}
+  /api/albums/{id}/cover/resolve:
+    post:
+      summary: Résoudre une couverture avec identité ISBN/EAN vérifiée
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Décision de couverture et provenance}
+        '404': {description: Album introuvable}
   /api/export/collection.json:
     get:
       summary: Export JSON gratuit

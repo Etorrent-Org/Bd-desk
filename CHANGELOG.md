@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Résolveur générique de métadonnées et couvertures** : ajout de l’adaptateur catalogue Hachette officiel, rapprochement par ISBN/EAN exact, score d’évidence explicite et décision de couverture traçable.
+- **Correction de Sweet Revenge** (9782344059814) : résolution attendue vers Valhalla Bunker, tome 1, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm, Fabien Bedouel et couverture officielle Hachette.
+- **Protection des données** : suppression de la génération/persistance automatique Open Library, migration des anciennes URLs mécaniques en couvertures machine remplaçables, verrouillage des couvertures utilisateur et enrichissement limité aux champs vides.
+- **API et PWA** : ajout de POST /api/albums/:id/cover/resolve, provenance de couverture et pagination en base, cache serveur ISBN, client de couverture centralisé à concurrence bornée et cache PWA bd-desk-v29 / build 2026.09.03.6.
+- **Tests et QA** : fixtures locales Hachette/BnF, tests d’identité contradictoire et de non-écrasement ; les contrôles live fournisseurs restent non bloquants pour isoler les indisponibilités externes.
 - **Refonte globale UI V3** : nouveau shell, hiérarchie visuelle, cartes, grilles, panneaux, modales, stats et fiche album via `experience-v3.css`.
 - Nouvelle identité des couvertures manquantes : remplacement du placeholder générique par une **couverture éditoriale typographique** basée sur série, titre, tome et éditeur.
 - Récupération progressive des couvertures visibles via les fournisseurs existants, limitée en concurrence et en volume pour éviter le martèlement des API.

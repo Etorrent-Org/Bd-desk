@@ -1,0 +1,25 @@
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "entity:hl_product/475062:fr",
+        "_source": {
+          "path": ["/glenat-bd/valhalla-bunker-tome-01-9782344059814"],
+          "site_system_name": ["glenat"],
+          "product__ean": ["9782344059814"],
+          "product__date_parution": ["21-08-2024"],
+          "product__date_parution__date": ["2024-08-21"],
+          "product__image_de_couverture": ["https://www.images.hachette-livre.fr/media/imgArticle/GLENAT/2024/9782344059814-001-X.jpeg?v=fixture"],
+          "product__page": [64],
+          "product__publisher": ["{\"label\":\"Glénat BD\"}"],
+          "product__collection_label": ["Comix Buro"],
+          "product__series": ["Valhalla Bunker"],
+          "product__serie_label": ["Valhalla Bunker"],
+          "product__titre_de_couverture": ["Valhalla Bunker - Tome 01"],
+          "product__intervenant__principal_full_name": ["Fabien Bedouel"],
+          "product__decoupled_render": "[{\"sous_titre_de_couverture\":\"Sweet revenge\",\"numero_de_tome\":1,\"largeur\":240,\"hauteur\":320}]"
+        }
+      }
+    ]
+  }
+}

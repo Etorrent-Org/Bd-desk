@@ -69,8 +69,10 @@ jobs:
         env:
           SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
         run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"return 'Glénat';\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F \"collection: collectionFromPublisher(rawPublisher)\" '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "node --check '$ALWAYSDATA_TARGET/src/metadata.js'"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'hachetteSearchUrl' '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'resolveCandidates' '$ALWAYSDATA_TARGET/src/metadata.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "node --check '$ALWAYSDATA_TARGET/src/db.js'"
 
       - name: Verify cover resolver deployed
         if: env.ALWAYSDATA_PASSWORD != ''
@@ -79,8 +81,9 @@ jobs:
         run: |
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "test -s '$ALWAYSDATA_TARGET/public/cover-sources.js'"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'openapi.bnf.fr/couverture' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "grep -F '/cover/resolve' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
+          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
 
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
@@ -121,19 +124,22 @@ jobs:
           curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$EXPERIENCE_JS" | grep -F 'BDDeskExperience' >/dev/null
           COVER_CODE="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL$COVER_JS")"
           printf '%s' "$COVER_CODE" | grep -F 'openapi.bnf.fr/couverture' >/dev/null
-          printf '%s' "$COVER_CODE" | grep -F 'covers.openlibrary.org' >/dev/null
-          printf '%s' "$COVER_CODE" | grep -F 'media.hachette.fr/imgArticle/GLENAT' >/dev/null
+          printf '%s' "$COVER_CODE" | grep -F '/cover/resolve' >/dev/null
+          ! printf '%s' "$COVER_CODE" | grep -F 'covers.openlibrary.org' >/dev/null
+          ! printf '%s' "$COVER_CODE" | grep -F 'media.hachette.fr/imgArticle/GLENAT' >/dev/null
           echo 'Live BD Desk experience V3 and real cover resolver verified.'
 
       - name: Verify live metadata normalization
         run: |
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
-          node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
+          node -e "const x=JSON.parse(process.argv[1]); const f=x.resolution?.fields||{}; if(f.title?.value!=='Sweet revenge') throw new Error('Unexpected resolved title'); if(f.publisher?.value!=='Glénat') throw new Error('Unexpected resolved publisher'); if(f.series?.value!=='Valhalla Bunker') throw new Error('Unexpected resolved series'); if(f.number?.value!=='1') throw new Error('Unexpected resolved number'); if(f.collectionName?.value!=='Comix Buro') throw new Error('Unexpected resolved collection'); if(f.printDate?.value!=='2024-08-21') throw new Error('Unexpected resolved date'); if(f.pageCount?.value!==64) throw new Error('Unexpected resolved page count'); if(f.format?.value!=='24 × 32 cm') throw new Error('Unexpected resolved format'); if(x.resolution?.cover?.source!=='hachette') throw new Error('Official Hachette cover not selected');" "$DISCOVERY"
           echo 'Live metadata normalization verified.'
 
       - name: Verify Sweet Revenge official cover source
         run: |
-          COVER_URL='https://media.hachette.fr/imgArticle/GLENAT/2024/9782344059814-001-X.jpeg?source=web'
+          DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
+          COVER_URL="$(node -e "const x=JSON.parse(process.argv[1]); if(!x.resolution?.cover?.url) throw new Error('No resolved cover'); process.stdout.write(x.resolution.cover.url)" "$DISCOVERY")"
+          printf '%s' "$COVER_URL" | grep -F 'images.hachette-livre.fr' >/dev/null
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$COVER_URL" -o /tmp/sweet-revenge-cover.jpeg
           test -s /tmp/sweet-revenge-cover.jpeg
           echo "Sweet Revenge official cover source verified: $(wc -c < /tmp/sweet-revenge-cover.jpeg) bytes."

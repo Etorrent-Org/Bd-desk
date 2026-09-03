@@ -98,6 +98,8 @@ Contrôler au minimum :
 - collection / séries / auteurs / éditeurs ;
 - statistiques Free et écran Premium ;
 - recherche et formulaires ;
+- pour une fiche sans couverture, vérifier que la résolution passe par l’API cover/resolve et qu’une absence de preuve laisse la couverture éditoriale ;
+- pour l’ISBN 9782344059814, vérifier la fiche Sweet revenge et la source officielle Hachette quand le service externe est disponible ;
 - installation PWA via **Partager → Sur l'écran d'accueil**.
 
 ## Important

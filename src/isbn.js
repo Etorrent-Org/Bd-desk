@@ -37,5 +37,5 @@ export function canonicalIsbn(value) {
   const n = normalizeIsbn(value);
   if (n.length === 13 && isValidIsbn13(n)) return n;
   if (n.length === 10 && isValidIsbn10(n)) return isbn10To13(n);
-  return n || null;
+  return null;
 }

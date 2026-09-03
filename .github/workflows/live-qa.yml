@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: 24
       - name: External metadata APIs
+        continue-on-error: true
         run: npm run test:external -- 9782203237766
       - name: Docker build
         run: docker build -t bd-desk:qa .
