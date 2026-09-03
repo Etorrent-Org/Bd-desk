@@ -37,6 +37,8 @@ Dans `Etorrent-Org/Bd-desk` :
 3. Nom : `ALWAYSDATA_PASSWORD`.
 4. Valeur : le mot de passe de l'utilisateur SSH `tatoune`.
 
+La clé `ALWAYSDATA_API_KEY` est facultative. Si elle est configurée, le workflow redémarre le site via l'API AlwaysData. Sinon, il utilise une relance SSH ciblée du processus Node BD Desk.
+
 Ne jamais enregistrer ce mot de passe dans un fichier du repository.
 
 > Une migration vers une clé SSH dédiée est recommandée après la mise en route. Le mot de passe est utilisé ici pour réduire à une seule étape la configuration initiale depuis iPad.
@@ -77,11 +79,13 @@ Le workflow :
 3. ne transfère ni `.env`, ni export privé, ni base locale ;
 4. effectue un contrôle sur `https://tatoune.alwaysdata.net/api/health`.
 
+Le workflow redémarre le processus Node après la synchronisation. La clé API AlwaysData n'est donc pas obligatoire pour les déploiements de preview.
+
 ## Déploiements suivants
 
 Après la configuration initiale, tout push sur `main` touchant l'UI, le serveur ou le lanceur alwaysdata déclenche automatiquement la synchronisation.
 
-Pour une simple modification UI (`public/`), un rafraîchissement Safari suffit généralement : les fichiers statiques sont relus depuis le disque.
+Pour une simple modification UI (`public/`), un rafraîchissement Safari suffit généralement : les fichiers statiques sont relus depuis le disque. Pour le serveur, le workflow relance le processus Node avant les contrôles live.
 
 ## Contrôle iPad
 
