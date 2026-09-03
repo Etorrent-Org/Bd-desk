@@ -75,8 +75,7 @@ jobs:
       - name: alwaysdata API restart not configured
         if: env.ALWAYSDATA_API_KEY == ''
         run: |
-          echo '::error::ALWAYSDATA_API_KEY is unavailable to this workflow. Configure it as a repository/organization Actions secret or variable with access to this repository.'
-          exit 1
+          echo '::warning::ALWAYSDATA_API_KEY is unavailable. Automatic restart is skipped; a manual alwaysdata restart is acceptable for this preview.'
 
       - name: Discover and restart alwaysdata HTTP site
         if: env.ALWAYSDATA_API_KEY != ''
@@ -96,13 +95,11 @@ jobs:
           echo
 
       - name: Preview health check
-        if: env.ALWAYSDATA_API_KEY != ''
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
 
       - name: Verify live metadata normalization
-        if: env.ALWAYSDATA_API_KEY != ''
         run: |
           DISCOVERY="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/discover?isbn=9782344059814")"
           node -e "const x=JSON.parse(process.argv[1]); const c=x.candidates.find(v=>v.source==='bnf'); if(!c) throw new Error('BnF candidate missing'); if(c.title!=='Sweet revenge') throw new Error('Unexpected BnF title: '+c.title); if(c.publisher!=='Glénat') throw new Error('Unexpected BnF publisher: '+c.publisher); if(c.collection!=='Comix Buro') throw new Error('Unexpected BnF collection: '+c.collection);" "$DISCOVERY"
