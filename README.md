@@ -11,15 +11,16 @@
 
 ## État courant
 
-- **43/43 tests** automatisés réussis sous Node.js 22 ; les jobs Node.js 22 et 24 sont verts dans la CI #100.
-- Couverture CI actuelle : **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches**.
-- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** dans le déploiement #79.
+- **43/43 tests** automatisés réussis ; les jobs Node.js 22 et 24 sont verts.
+- Couverture CI : **99,23 % lignes**, **96,02 % fonctions**, **75,49 % branches**.
+- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés**.
 - Live QA fournisseurs : Open Library et BnF sont couverts ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Validation de l'import sur l'export BDGest de référence : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité**. Voir [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
 - Le suivi QA vivant est tenu dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
+- **Campagne QA matérielle iOS en cours** : iPad + iPhone, Safari puis PWA, exécutée test par test dans l'ordre `QA-IOS-001` à `QA-IOS-020`.
 
-## Preview iPad
+## Preview iOS — iPad et iPhone
 
 La preview de développement est disponible sur :
 
@@ -29,7 +30,9 @@ Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements ve
 
 La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
 
-Voir [Déploiement alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md).
+La validation réelle est menée sur **iPad et iPhone**, d'abord dans Safari, puis comme PWA installée sur l'écran d'accueil. Les résultats sont enregistrés au fur et à mesure dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
+
+Voir [Test iOS / PWA](docs/DEPLOYMENT-IPAD.md) et [Déploiement alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md).
 
 ## Démarrage local
 
@@ -90,7 +93,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [Tests et validation](docs/TESTING.md)
 - [Suivi QA vivant](docs/QA-TRACKING.md)
 - [Rapport QA v1.0.0](docs/QA-REPORT.md)
-- [Test iPad / PWA](docs/DEPLOYMENT-IPAD.md)
+- [Test iPad + iPhone / PWA](docs/DEPLOYMENT-IPAD.md)
 - [Preview alwaysdata](docs/DEPLOYMENT-ALWAYSDATA.md)
 
 ## Structure
