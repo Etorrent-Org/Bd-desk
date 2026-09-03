@@ -35,4 +35,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: test -s public/index.html && test -s public/app.js && test -s public/styles.css && test -s public/adaptive-ui.css && test -s public/adaptive-ui.js
+      - run: test -s public/index.html && test -s public/app.js && test -s public/styles.css && test -s public/adaptive-ui.css && test -s public/catalog-ui.css && test -s public/adaptive-ui.js
