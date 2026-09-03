@@ -3,11 +3,17 @@
 ## Unreleased
 
 - Ajout de `docs/QA-TRACKING.md`, journal QA vivant sous forme de tableau **Test / Validation / PR**.
-- Mise à jour du suivi CI : **43/43 tests** réussis, CI Node.js 22/24 verte, couverture à **99,23 % lignes**, **96,02 % fonctions** et **75,49 % branches**.
+- Mise à jour du suivi CI : Node.js 22/24, couverture et smoke tests exécutés à chaque changement.
 - Validation live de la preview alwaysdata : synchronisation SSH, `/api/health` et normalisation BnF réussies dans le déploiement #79.
 - Le redémarrage automatique via l'API alwaysdata devient non bloquant : un redémarrage manuel reste possible sans empêcher les contrôles live.
-- Lancement d'une campagne QA matérielle **iPad + iPhone**, Safari puis PWA, structurée en 20 tests `QA-IOS-001` à `QA-IOS-020` et exécutée strictement un test à la fois.
+- Lancement d'une campagne QA matérielle **iPad + iPhone**, navigateur réel puis PWA, structurée en 20 tests `QA-IOS-001` à `QA-IOS-020` et exécutée strictement un test à la fois.
 - Premier retour matériel iPad : correction du chevauchement des cartes `Reprendre ma lecture` lorsque la couverture est absente, avec cache PWA incrémenté pour forcer le nouveau CSS.
+- Premier retour iPhone portrait : décision de remplacer le simple responsive compressé par une **interface smartphone universelle dédiée**.
+- Nouvelle couche `adaptive-ui.js` / `adaptive-ui.css` : détection `phone / tablet / desktop` par viewport, taille d'écran, capacités tactiles et orientation, **sans sniffing user-agent**.
+- Smartphone portrait : header compact, recherche à la demande, actions secondaires regroupées, navigation basse permanente et collection en **2 colonnes**.
+- Smartphone paysage : densité adaptée tout en conservant la navigation mobile.
+- Cache PWA incrémenté en `bd-desk-v23` pour livrer la nouvelle interface adaptative.
+- Ajout de tests automatisés du contrat mobile et de contrôles `node --check` sur les scripts frontend critiques.
 - Harmonisation du README, de l'architecture et de la documentation QA avec l'état réellement validé.
 
 ## 1.0.1 — 2026-09-02
