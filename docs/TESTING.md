@@ -13,7 +13,7 @@ Le seuil CI impose :
 - fonctions ≥ 90 % ;
 - branches ≥ 70 %.
 
-La mesure locale de cette passe est de 99,42 % lignes, 95,09 % fonctions et 74,58 % branches sur l’ensemble testé ; les trois seuils sont respectés.
+La mesure locale de la passe du 04/09/2026 est de **99,58 % lignes**, **95,15 % fonctions** et **76,53 % branches** sur l’ensemble testé ; les trois seuils sont respectés. Cette mesure remplace les chiffres historiques affichés dans les anciennes notes QA.
 
 ## Périmètre des tests
 
@@ -32,9 +32,9 @@ La mesure locale de cette passe est de 99,42 % lignes, 95,09 % fonctions et 74,5
 - MCP 2026-07-28 et validation des headers/origines ;
 - routes HTTP et headers de sécurité.
 
-## Validation BDGest
+## Validation de l’import BDGest
 
-Le fichier BDGest privé de référence n’est pas présent dans ce workspace et n’a donc pas été relu pendant cette passe. Il ne faut pas présenter l’ancien résultat 479/479 comme une revalidation de cette branche. La fixture publique tests/fixtures/bdgest-sample.csv reste validée : 4 lignes importées, 0 rejet, 116 contrôles de champs concordants, score 100.
+Le fichier réel fourni par l’utilisateur a été contrôlé hors dépôt le 04/09/2026 avec import, contrôle champ par champ et réimport idempotent. Le fichier privé et les résultats détaillés ne sont pas committés. La fixture publique `tests/fixtures/bdgest-sample.csv` reste également validée.
 
 ## APIs externes
 

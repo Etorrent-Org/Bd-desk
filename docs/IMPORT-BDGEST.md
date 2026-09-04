@@ -2,7 +2,7 @@
 
 ## Format pris en charge
 
-Export CSV `;` de la collection en ligne BDGest contenant la table `ALBUM`.
+Fichier CSV `;` exporté depuis la collection en ligne BDGest, contenant la table `ALBUM` et destiné à l’import dans BD Desk.
 
 Le parseur :
 
@@ -15,18 +15,18 @@ Le parseur :
 
 ## Sécurité des données
 
-L'export personnel ne doit pas être committé. Pour initialiser une instance propriétaire :
+Le fichier personnel d’import ne doit pas être committé. Pour initialiser une instance propriétaire :
 
 ```bash
 BD_DESK_DB=./data/bd-desk.db \
-BD_DESK_SEED_CSV=/chemin/collection.csv \
+  BD_DESK_SEED_CSV=/chemin/fichier-import-bdgest.csv \
 npm run seed
 ```
 
-Pour valider un export sans le conserver :
+Pour valider un fichier d’import sans le conserver :
 
 ```bash
-npm run validate:bdgest -- /chemin/collection.csv
+npm run validate:bdgest -- /chemin/fichier-import-bdgest.csv
 ```
 
 ## Résultat du fichier de référence

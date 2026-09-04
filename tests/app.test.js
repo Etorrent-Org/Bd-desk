@@ -47,3 +47,40 @@ test('la couverture machine est servie en same-origin et refuse une URL non appr
   r=await fetch(base+'/api/albums/'+user.id+'/cover/image');
   assert.equal(r.status,404);
 },{coverFetchImpl:async()=>new Response('official-cover',{status:200,headers:{'content-type':'image/jpeg'}})}));
+
+test('le proxy accepte une image valide malgré un MIME fournisseur incorrect',()=>withServer(async({base,db})=>{
+  const a=createAlbum(db,{series:'Saga',number:'1',title:'Couverture MIME',isbn:'9782344059814'});
+  persistCoverDecision(db,a.id,{url:'https://www.images.hachette-livre.fr/cover.jpeg',source:'hachette',confidence:.94});
+  const r=await fetch(base+'/api/albums/'+a.id+'/cover/image');
+  assert.equal(r.status,200);
+  assert.equal(r.headers.get('content-type'),'image/jpeg');
+  assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[255,216,255,0]);
+},{coverFetchImpl:async()=>new Response(new Uint8Array([255,216,255,0]),{status:200,headers:{'content-type':'application/octet-stream'}})}));
+
+test('les routes refusent proprement les albums et prêts inexistants',()=>withServer(async({base})=>{
+  let r=await fetch(base+'/api/albums/999',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({title:'x'})});
+  assert.equal(r.status,404);
+  r=await fetch(base+'/api/albums/999',{method:'DELETE'}); assert.equal(r.status,404);
+  r=await fetch(base+'/api/albums/999/cover/resolve',{method:'POST'}); assert.equal(r.status,404);
+  r=await fetch(base+'/api/loans',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({albumId:999,borrower:'Alex'})}); assert.equal(r.status,400);
+  r=await fetch(base+'/api/loans/999/return',{method:'PATCH'}); assert.equal(r.status,404);
+  r=await fetch(base+'/mcp'); assert.equal(r.status,405);
+  r=await fetch(base+'/api/inconnue'); assert.equal(r.status,404);
+}));
+
+test('l’import BDGest Premium fonctionne et reste idempotent par IdAlbum',()=>withServer(async({base,config})=>{
+  await activate(base,config);
+  const csv='Table;IdAlbum;ISBN;Serie;Num;Titre\nALBUM;9001;9782203237766;Saga;1;Importé';
+  let r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:csv});
+  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[]});
+  r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:csv});
+  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[]});
+  r=await fetch(base+'/api/albums?limit=500'); assert.equal((await r.json()).total,2);
+}));
+
+test('proxy de couverture rejette un contenu non image',()=>withServer(async({base,db})=>{
+  const a=createAlbum(db,{series:'Saga',number:'1',title:'Mauvais MIME',isbn:'9782344059814'});
+  persistCoverDecision(db,a.id,{url:'https://www.images.hachette-livre.fr/cover.jpeg',source:'hachette',confidence:.94});
+  const r=await fetch(base+'/api/albums/'+a.id+'/cover/image');
+  assert.equal(r.status,502);
+},{coverFetchImpl:async()=>new Response('not-an-image',{status:200,headers:{'content-type':'text/plain'}})}));

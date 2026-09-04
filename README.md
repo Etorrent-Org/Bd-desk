@@ -40,17 +40,17 @@ La couche `public/catalog-ui.css` ajoute :
 - métadonnées réduites sous les couvertures pour favoriser la densité ;
 - KPI d'accueil plus compacts et derniers ajouts alignés sur le même langage de grille.
 
-Cette refonte a été fusionnée via **PR #1** dans `main` et déployée sur la preview alwaysdata avec le **Deploy #87**. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
+Cette refonte et les correctifs de couverture ont été déployés sur la preview AlwaysData ; la dernière exécution de déploiement est le **Deploy #113**. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
 
 ## État courant
 
 - CI Node.js 22 et 24, couverture et smoke tests sont exécutés à chaque changement.
 - La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
-- **Catalogue visuel 2026 sur `main`** : CI #149 verte, PR #1 fusionnée, Deploy #87 validé.
+- **Catalogue visuel et résolveur couverture sur `main`** : CI #197 verte, Deploy #113 validé ; la dernière série de correctifs est portée par le commit [`9c2628f`](https://github.com/Etorrent-Org/Bd-desk/commit/9c2628ff6a35ccc8f06e45295c420d996736fc7a).
 - Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** sur `main`.
 - Live QA fournisseurs : le catalogue Hachette/Glénat, BnF Dublin Core/Intermarc, Open Library et Google Books sont isolés par fournisseur ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Le cas de référence Sweet Revenge (EAN 9782344059814) est couvert par des fixtures locales et la résolution attendue est : Valhalla Bunker, tome 1, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm, Fabien Bedouel, avec couverture officielle Hachette.
-- Baseline historique annoncée pour l'import BDGest : **479/479 albums**, **13 891/13 891 contrôles de champs**, **100 % de fidélité** ; l'export privé n'est pas présent dans ce workspace et doit être rejoué avant de considérer cette branche comme revalidée. La fixture publique courante est suivie dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
+- Import BDGest de référence contrôlé localement le 04/09/2026 avec la procédure d’idempotence et de fidélité champ par champ. Le fichier privé et les résultats détaillés ne sont jamais committés ; la procédure est décrite dans [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
 - Les tests unitaires n'embarquent pas la collection privée : un jeu de test synthétique est utilisé dans `tests/fixtures/`.
 - Le suivi QA vivant est tenu dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 - **Campagne QA matérielle iOS en cours** : iPad + iPhone, navigateur réel puis PWA, exécutée test par test dans l'ordre `QA-IOS-001` à `QA-IOS-020`.
@@ -63,7 +63,7 @@ La preview de développement est disponible sur :
 
 Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements de `main` vers alwaysdata puis exécute un health check et un contrôle live des métadonnées. Si la clé API alwaysdata n'est pas exposée au workflow, le redémarrage HTTP automatique est ignoré et peut être effectué manuellement ; les contrôles live restent exécutés.
 
-La preview n'utilise que des données synthétiques et ne publie jamais l'export BDGest privé.
+La preview n'utilise que des données synthétiques et ne publie jamais le fichier privé d'import BDGest.
 
 La validation réelle est menée sur **iPad et iPhone**, d'abord dans un navigateur réel, puis comme PWA installée sur l'écran d'accueil. Les résultats sont enregistrés au fur et à mesure dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md).
 
@@ -86,7 +86,7 @@ Pour charger une collection BDGest en initialisation propriétaire, sans la comm
 
 ```bash
 BD_DESK_DB=./data/bd-desk.db \
-BD_DESK_SEED_CSV=/chemin/vers/export-bdgest.csv \
+  BD_DESK_SEED_CSV=/chemin/vers/fichier-import-bdgest.csv \
 npm run seed
 ```
 

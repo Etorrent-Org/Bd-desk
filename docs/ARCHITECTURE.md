@@ -93,7 +93,7 @@ Matrice cible :
 
 Les cartes conservent la couverture comme élément principal et réduisent les métadonnées secondaires. Sur smartphone portrait, la troisième ligne descriptive est masquée pour limiter la hauteur. La barre de filtre de collection est sticky et compacte.
 
-Cette couche a été développée dans `feat/catalog-ui-refresh`, validée automatiquement, fusionnée via **PR #1** puis déployée sur `main` avec le **Deploy #87**. Le commit antérieur à la refonte reste disponible dans l'historique Git pour un retour arrière si nécessaire.
+Cette couche a été développée dans une branche dédiée, validée automatiquement puis déployée sur `main` avec le **Deploy #113**. Les commits antérieurs restent disponibles dans l'historique Git pour un retour arrière si nécessaire.
 
 Voir [`UI-CATALOG.md`](UI-CATALOG.md) pour le contrat visuel détaillé.
 
