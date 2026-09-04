@@ -85,6 +85,15 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'covers.openlibrary.org' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
 
+      - name: Configure preview license secret
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
+          LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
+        run: |
+          test -n "$LICENSE_SECRET" || { echo '::error::BD_DESK_LICENSE_SECRET is unavailable to this workflow.'; exit 1; }
+          printf '%s' "$LICENSE_SECRET" | base64 -w 0 | sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "base64 -d > /home/tatoune/data/bd-desk-license-secret && chmod 600 /home/tatoune/data/bd-desk-license-secret"
+
       - name: Materialize trusted cover assets
         run: |
           ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
@@ -185,6 +194,20 @@ jobs:
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
           echo
+
+      - name: Activate Premium license for preview
+        env:
+          LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
+        run: |
+          test -n "$LICENSE_SECRET" || { echo '::error::BD_DESK_LICENSE_SECRET is unavailable to this workflow.'; exit 1; }
+          LICENSE_VALUE="$(BD_DESK_LICENSE_SECRET="$LICENSE_SECRET" node scripts/generate-license.js alwaysdata-preview)"
+          LICENSE_PAYLOAD="$(node -e 'process.stdout.write(JSON.stringify({key:process.argv[1]}))' "$LICENSE_VALUE")"
+          LICENSE_RESPONSE="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
+            --request POST "$PREVIEW_URL/api/license/activate" \
+            --header 'content-type: application/json' \
+            --data "$LICENSE_PAYLOAD")"
+          node -e "const x=JSON.parse(process.argv[1]); if(x.plan!=='premium') throw new Error('Preview license was not activated');" "$LICENSE_RESPONSE"
+          echo 'Preview Premium license activated without exposing the key.'
 
       - name: Verify live trusted cover asset
         run: |
