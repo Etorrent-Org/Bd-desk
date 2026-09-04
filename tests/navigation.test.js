@@ -8,7 +8,8 @@ test('toutes les routes UI passent par un aiguillage centralisé',async()=>{
   const app=await read('public/app.js');
   const html=await read('public/index.html');
   assert.match(app,/const routeNames=new Set/);
-  assert.match(app,/document\.addEventListener\('click',e=>/);
+  assert.match(app,/document\.addEventListener\('click',e=>\{const button=e\.target\.closest\?\.\('\[data-route\],#themeBtn,#menuBtn'\)/);
+  assert.match(app,/button\.id==='themeBtn'\).*go\('settings'\)/);
   assert.match(app,/button\.dataset\.route==='add'/);
   assert.match(app,/e\.preventDefault\(\);go\(button\.dataset\.route\)/);
   assert.doesNotMatch(app,/\$\$\('\[data-route\]'\)\.forEach\(b=>b\.onclick/);
