@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Validation complète de l’import BDGest** : la procédure de contrôle du fichier réel et de réimport idempotent est exécutée hors dépôt ; les ISBN dupliqués restent autorisés et le fichier privé n’est pas publié.
+- **Robustesse du pipeline couverture** : le proxy same-origin reconnaît les images valides même lorsqu’un fournisseur annonce `application/octet-stream`, tout en rejetant les contenus non image ; une mise à jour d’album inexistant renvoie désormais 404.
+- **QA automatisée** : 71 tests passent ; couverture mesurée à 99,58 % lignes, 95,15 % fonctions et 76,53 % branches ; contrôle live des fournisseurs réalisé avec Google Books signalé en dégradé lorsque le quota anonyme répond HTTP 429.
 - **Résolveur générique de métadonnées et couvertures** : ajout de l’adaptateur catalogue Hachette officiel, rapprochement par ISBN/EAN exact, score d’évidence explicite et décision de couverture traçable.
 - **Correction de Sweet Revenge** (9782344059814) : résolution attendue vers Valhalla Bunker, tome 1, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm, Fabien Bedouel et couverture officielle Hachette.
 - **Protection des données** : suppression de la génération/persistance automatique Open Library, migration des anciennes URLs mécaniques en couvertures machine remplaçables, verrouillage des couvertures utilisateur et enrichissement limité aux champs vides.

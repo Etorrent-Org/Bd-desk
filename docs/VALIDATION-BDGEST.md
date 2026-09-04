@@ -1,15 +1,19 @@
-# Validation import BDGest
+# Validation de l’import BDGest
 
-- Albums source : **479**
-- Albums importés : **479**
-- Rejets : **0**
-- Séries : **165**
-- ISBN renseignés : **466**
-- Éditions originales marquées : **363**
-- Albums lus : **382**
-- Groupes d'ISBN dupliqués : **1**
-- Contrôles champ par champ : **13891**
-- Correspondances : **13891**
-- Score de fidélité : **100 %**
+Le fichier réel fourni par l’utilisateur est contrôlé localement, en mémoire, avec `scripts/validate-bdgest.js`. Le fichier privé, son nom et les résultats détaillés ne sont pas publiés dans le dépôt.
 
-Aucun écart détecté sur les champs mappés.
+La procédure vérifie :
+
+- la lecture des lignes `ALBUM` du CSV BDGest ;
+- la fidélité de chaque champ importé ;
+- l’absence de rejet inattendu ;
+- la réimportation idempotente par `IdAlbum` ;
+- la conservation d’éditions distinctes pouvant partager un ISBN.
+
+Commande :
+
+```bash
+npm run validate:bdgest -- /chemin/vers/fichier-import-bdgest.csv
+```
+
+La fixture publique `tests/fixtures/bdgest-sample.csv` est couverte par la suite automatisée.

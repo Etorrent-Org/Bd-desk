@@ -198,3 +198,20 @@ test('résolution déterministe départage deux records équivalents',()=>{
   assert.equal(resolution.winner.sourceId,'a');
   assert.equal(resolution.cover.candidateId,'a');
 });
+
+test('résolveur générique couvre les familles éditoriales sans règle ISBN dédiée',()=>{
+  const samples=[
+    ['franco-belge','Valhalla Bunker','Sweet revenge'],
+    ['comics','Batman','Year One'],
+    ['manga','Nausicaä','Tome 1'],
+    ['ancien','Les aventures','Édition 1988'],
+    ['récent','Saga','Nouveauté 2026']
+  ];
+  for(const [family,series,title] of samples){
+    const isbn='9782344059814';
+    const result=resolveCandidates(isbn,[{source:'fixture-'+family,sourceId:family,title,series,identifiers:[isbn],coverIdentifiers:[isbn],coverUrl:'https://books.google.com/'+family+'.jpg',coverEvidence:{apiRecord:true}}]);
+    assert.equal(result.winner.title,title,family);
+    assert.equal(result.cover.source,'fixture-'+family,family);
+  }
+  assert.equal(resolveCandidates(isbn,[]).decision,'fallback-editorial');
+});

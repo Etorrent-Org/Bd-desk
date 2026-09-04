@@ -15,7 +15,6 @@ const PUBLIC=path.resolve(__dirname,'../public');
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.jpeg':'image/jpeg','.jpg':'image/jpeg','.png':'image/png','.webp':'image/webp','.webmanifest':'application/manifest+json'};
 
 function json(res,status,data,headers={}){ res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}); res.end(JSON.stringify(data)); }
-function text(res,status,data,type='text/plain; charset=utf-8'){ res.writeHead(status,{'content-type':type}); res.end(data); }
 async function body(req,max=5_000_000){ let chunks=[],size=0; for await(const c of req){ size+=c.length;if(size>max) throw Object.assign(new Error('Payload too large'),{status:413});chunks.push(c); } return Buffer.concat(chunks).toString('utf8'); }
 async function jsonBody(req){ const b=await body(req); if(!b)return {}; try{return JSON.parse(b)}catch{throw Object.assign(new Error('JSON invalide'),{status:400})} }
 function bearer(req){ const h=req.headers.authorization||''; return h.startsWith('Bearer ')?h.slice(7):null; }
@@ -37,12 +36,17 @@ async function fetchCover(fetchImpl,url){
     const response=await fetchImpl(url,{headers:{accept:'image/avif,image/webp,image/apng,image/*,*/*;q=0.8','user-agent':'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)'},signal:controller.signal});
     if(!response.ok)return null;
     const contentType=(response.headers.get('content-type')||'').split(';')[0].toLowerCase();
-    if(contentType&&!contentType.startsWith('image/'))return null;
     const declaredLength=Number(response.headers.get('content-length')||0);
     if(declaredLength>COVER_MAX_BYTES)return null;
     const buffer=Buffer.from(await response.arrayBuffer());
     if(!buffer.length||buffer.length>COVER_MAX_BYTES)return null;
-    return {contentType:contentType||'image/jpeg',buffer};
+    const detectedType=buffer.subarray(0,3).equals(Buffer.from([0xff,0xd8,0xff]) )?'image/jpeg'
+      :buffer.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]))?'image/png'
+      :buffer.subarray(0,6).toString('ascii').match(/^GIF8[79]a$/)?'image/gif'
+      :buffer.subarray(0,12).toString('ascii').match(/^RIFF....WEBP$/)?'image/webp'
+      :null;
+    if(contentType&&!contentType.startsWith('image/')&&!detectedType)return null;
+    return {contentType:contentType.startsWith('image/')?contentType:(detectedType||'image/jpeg'),buffer};
   }finally{clearTimeout(timer)}
 }
 
@@ -106,7 +110,7 @@ export function createBdDeskApp(config, opts={}){
       }
       m=p.match(/^\/api\/albums\/(\d+)$/);
       if(m&&req.method==='GET'){ const a=getAlbum(db,m[1]); return a?json(res,200,a):json(res,404,{error:'Album introuvable'}); }
-      if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],await jsonBody(req)); await emit('album.updated',a); return json(res,200,a); }
+      if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],await jsonBody(req)); if(!a)return json(res,404,{error:'Album introuvable'}); await emit('album.updated',a); return json(res,200,a); }
       if(m&&req.method==='DELETE'){ const ok=deleteAlbum(db,m[1]); return json(res,ok?200:404,{ok}); }
       m=p.match(/^\/api\/metadata\/(\d+)\/enrich$/);
       if(m&&req.method==='POST'){ if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'}); const a=getAlbum(db,m[1]); if(!a||!a.isbn)return json(res,400,{error:'ISBN requis'}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const applied=applyMetadataResolution(db,a.id,resolution); await emit('album.enriched',{album:applied.album,provenance:applied.provenance,cover:applied.cover}); return json(res,200,{album:applied.album,candidates,resolution,provenance:applied.provenance,changed:applied.updatedFields.length>0||applied.cover.updated}); }
@@ -130,7 +134,7 @@ export function createBdDeskApp(config, opts={}){
       }
       if(p==='/mcp') return json(res,405,{error:'MCP 2026-07-28 utilise POST'},{allow:'POST','mcp-protocol-version':MCP_PROTOCOL_VERSION});
       if(p.startsWith('/api/')) return json(res,404,{error:'Route API inconnue'});
-      let file=p==='/'?'index.html':p.replace(/^\//,''); file=path.resolve(PUBLIC,file); if(!file.startsWith(PUBLIC))return text(res,403,'Forbidden');
+      let file=p==='/'?'index.html':p.replace(/^\//,''); file=path.resolve(PUBLIC,file); if(!file.startsWith(PUBLIC)){res.writeHead(403,{'content-type':'text/plain; charset=utf-8'});return res.end('Forbidden');}
       if(!fs.existsSync(file)||fs.statSync(file).isDirectory()) file=path.join(PUBLIC,'index.html');
       const ext=path.extname(file); res.writeHead(200,{'content-type':mime[ext]||'application/octet-stream','cache-control':ext==='.html'?'no-cache':'public, max-age=3600','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin','permissions-policy':'camera=(self)','content-security-policy':"default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"}); fs.createReadStream(file).pipe(res);
     }catch(e){ json(res,e.status||500,{error:e.message||'Erreur interne'}); }
