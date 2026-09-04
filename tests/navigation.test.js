@@ -23,3 +23,11 @@ test('un rendu retardé ne peut pas écraser la route courante',async()=>{
   assert.match(app,/const version=\+\+renderVersion,route=state\.route/);
   assert.match(app,/if\(version!==renderVersion\|\|route!==state\.route\)return/);
 });
+
+test('la collection reste parcourable sans limite produit',async()=>{
+  const app=await read('public/app.js');
+  assert.match(app,/pageSize=60/);
+  assert.match(app,/data-collection-page/);
+  assert.match(app,/state\.collection\.read/);
+  assert.match(app,/offset:String\(page\*pageSize\)/);
+});

@@ -4,11 +4,14 @@ Base : `/api`.
 
 ## Libre / application
 
+L'édition est exposée par `edition` dans `/license` et `/capabilities` : `free` ou `licensed`. Le plan actif est `free` tant qu'aucune licence valide n'est activée.
+
 | Méthode | Route | Usage |
 |---|---|---|
 | GET | `/health` | santé et nombre d'albums |
 | GET | `/license` | plan et fonctionnalités |
 | POST | `/license/activate` | activer une licence signée |
+| GET | `/capabilities` | matrice des capacités de l'édition et du plan |
 | GET | `/dashboard` | KPI d'accueil |
 | GET | `/stats` | statistiques essentielles |
 | GET | `/series` | synthèse des séries et trous détectés |
@@ -23,6 +26,8 @@ Base : `/api`.
 | GET | `/discover?isbn=…` | recherche externe manuelle avec candidats, scores et résolution retenue |
 | GET | `/export/collection.json` | export complet gratuit |
 
+`GET /albums` accepte `limit` (1–500), `offset`, `search`, `wishlist=0|1` et `read=0|1`. La réponse contient toujours `items`, `total`, `limit` et `offset`, ce qui permet à la PWA de parcourir une collection sans limite fonctionnelle.
+
 ## Premium
 
 | Méthode | Route | Feature licence |
@@ -30,7 +35,7 @@ Base : `/api`.
 | GET | `/stats/advanced` | `advanced_stats` |
 | GET | `/editions/anomalies` | `advanced_stats` |
 | POST | `/metadata/:id/enrich` | `metadata_auto`, champs éditoriaux vides et provenance |
-| POST | `/import/bdgest` | `bulk_import` |
+| POST | `/import/bdgest` | `bulk_import` — import du CSV BDGest dans BD Desk, jamais export |
 | GET/POST | `/keys` | `api` |
 | DELETE | `/keys/:id` | `api` |
 | GET/POST | `/webhooks` | `webhooks` |

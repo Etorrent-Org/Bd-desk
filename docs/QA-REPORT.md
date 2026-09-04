@@ -24,7 +24,7 @@ Date : 2026-09-01
 
 ## QA navigateur
 
-Un navigateur Chromium a été piloté avec le frontend réel, le serveur réel et une base temporaire alimentée depuis l'export BDGest de référence. Les couvertures ont été remplacées uniquement dans les captures QA par des visuels synthétiques afin de contrôler la grille sans publier ni dépendre des images distantes.
+Un navigateur Chromium a été piloté avec le frontend réel, le serveur réel et une base temporaire alimentée depuis le fichier d’import BDGest de référence. Les couvertures ont été remplacées uniquement dans les captures QA par des visuels synthétiques afin de contrôler la grille sans publier ni dépendre des images distantes.
 
 Contrôles réalisés et validés :
 

@@ -39,6 +39,8 @@ Dans `Etorrent-Org/Bd-desk` :
 
 La clé `ALWAYSDATA_API_KEY` est facultative. Si elle est configurée, le workflow redémarre le site via l'API AlwaysData. Sinon, il utilise une relance SSH ciblée du processus Node BD Desk.
 
+La variable Actions `BD_DESK_EDITION` choisit l'édition de la preview : `licensed` par défaut, ou `free` pour vérifier le parcours sans licence. En mode `licensed`, le secret Actions `BD_DESK_LICENSE_SECRET` est nécessaire pour l'activation automatique ; en mode `free`, ce secret n'est pas requis.
+
 Ne jamais enregistrer ce mot de passe dans un fichier du repository.
 
 > Une migration vers une clé SSH dédiée est recommandée après la mise en route. Le mot de passe est utilisé ici pour réduire à une seule étape la configuration initiale depuis iPad.
@@ -76,8 +78,9 @@ Le workflow :
 
 1. synchronise le repository vers `/home/tatoune/www/bd-desk` ;
 2. conserve la base de preview dans `/home/tatoune/data/bd-desk-preview.db` ;
-3. ne transfère ni `.env`, ni export privé, ni base locale ;
-4. effectue un contrôle sur `https://tatoune.alwaysdata.net/api/health`.
+3. ne transfère ni `.env`, ni fichier privé d’import BDGest, ni base locale ;
+4. écrit seulement le mode `free|licensed` dans un fichier privé AlwaysData ;
+5. effectue un contrôle sur `https://tatoune.alwaysdata.net/api/health`.
 
 Le workflow redémarre le processus Node après la synchronisation et résout les couvertures des albums de preview déjà présents. La clé API AlwaysData n'est donc pas obligatoire pour les déploiements de preview.
 

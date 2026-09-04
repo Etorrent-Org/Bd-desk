@@ -18,12 +18,12 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   const html=await read('public/index.html');
   const sw=await read('public/sw.js');
   const app=await read('public/app.js');
-  assert.match(html,/bd-desk-build" content="2026\.09\.03\.9"/);
-  assert.match(app,/sw\.js\?v=20260903-9/);
+  assert.match(html,/bd-desk-build" content="2026\.09\.04\.1"/);
+  assert.match(app,/sw\.js\?v=20260904-1/);
   assert.match(app,/updateViaCache:'none'/);
   assert.match(app,/\/covers\/\$\{encodeURIComponent\(id\)\}\.svg/);
-  assert.match(sw,/bd-desk-v32/);
-  assert.match(sw,/app\.js\?v=20260903-9/);
+  assert.match(sw,/bd-desk-v33/);
+  assert.match(sw,/app\.js\?v=20260904-1/);
 });
 
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
@@ -59,4 +59,9 @@ test('une couverture échouée revient à l’identité éditoriale de l’album
   assert.match(js,/payload\.title/);
   assert.match(js,/BDDeskCoverSources/);
   assert.doesNotMatch(js,/label\|\|'Couverture'/);
+});
+
+test('la fiche contrôle la feature d’enrichissement, pas seulement le plan',async()=>{
+  const js=await read('public/detail-enhance.js');
+  assert.match(js,/features\?\.includes\('metadata_auto'\)/);
 });

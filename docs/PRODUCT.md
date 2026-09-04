@@ -4,6 +4,8 @@
 
 BD Desk doit pouvoir remplacer un gestionnaire de collection traditionnel sans imposer un abonnement pour conserver une grosse collection. La monétisation porte sur l'automatisation, l'enrichissement et la connectivité.
 
+Le MVP est livré en deux éditions (`free` et `licensed`). La partie Gold n'est pas incluse dans cette version et ne doit pas être présentée comme disponible.
+
 ## Gratuit
 
 - Collection illimitée.

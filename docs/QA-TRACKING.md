@@ -11,11 +11,31 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 
 ## Tableau de suivi
 
-## Passe résolveur métadonnées / couverture — 2026-09-03
+## Passe complète — 2026-09-04
+
+Cette passe est réalisée depuis une branche dédiée `fix/mvp-free-premium`, créée après synchronisation avec `origin/main` à partir du commit `9c2628f`. Le fichier privé d’import est utilisé uniquement hors dépôt et n’est pas publié.
+
+| Gate | Validation | Preuve |
+|---|---|---|
+| Import BDGest réel | ✅ Contrôle local du fichier utilisateur : import, fidélité champ par champ et absence de rejet vérifiés. | `scripts/validate-bdgest.js` — fichier privé fourni localement |
+| Idempotence et ISBN dupliqués | ✅ Réimport contrôlé sans doublonner les albums ; les éditions partageant un ISBN restent distinctes. | Rapport local non publié |
+| Tests automatisés | ✅ 86/86 tests passés. | `npm test` |
+| Couverture de code | ✅ Seuils respectés : 99,64 % lignes, 95,11 % fonctions, 78,25 % branches. | `npm run test:coverage` |
+| Fournisseurs live — ISBN de référence | ⚠️ Hachette, Open Library, BnF Dublin Core et BnF Intermarc OK ; Google Books HTTP 429 sur quota anonyme, non bloquant. | `npm run test:external -- 9782344059814` |
+| Sweet Revenge live | ⏳ À revalider après déploiement de cette passe ; les fixtures et le résolveur local restent verts. | Contrôle live à relancer |
+| Preview AlwaysData | ✅ Health check, assets, cache PWA et couvertures Sweet Revenge/Troisième contrôlés. | `https://tatoune.alwaysdata.net/` |
+| Audit fonctionnel API | ✅ Routes critiques, édition Free/licenciée, import Premium, licences, API keys, webhooks, MCP, CRUD, prêts et erreurs ajoutés ou vérifiés par tests. | 86 tests locaux |
+| QA visuelle cloud | ⚠️ Accueil, collection, fiche album et affichage desktop contrôlés dans le navigateur ; le navigateur cloud ne peut pas ouvrir le serveur local et ne permet pas de remplacer une validation matérielle iOS. | Contrôle live du 04/09/2026 |
+| QA iPhone/iPad matériel | ⏳ À réaliser par l’utilisateur sur appareil réel : QA-IOS-002 à QA-IOS-020. | Non simulé |
+| PR et déploiement de cette passe | ⏳ À faire après mise à jour documentaire et vérification finale. | Branche `fix/mvp-free-premium` |
+
+Les chiffres ci-dessus remplacent les anciennes notes de la passe du 03/09/2026. La section historique ci-dessous est conservée uniquement pour la traçabilité.
+
+## Historique — passe résolveur métadonnées / couverture — 2026-09-03
 
 État initial contrôlé avant modification : dépôt propre sur main à 75e57075a951e5c34fcf2daffa5312f71b79e1bf ; preview /api/health OK ; l’album Sweet revenge (9782344059814) portait une URL Open Library mécanique en 404 ; aucune branche de travail distante n’était encore créée.
 
-État local courant : branche fix/metadata-cover-pipeline ; commits locaux `bbc8706` et `41c5018` ; 64 tests automatisés verts ; fixtures Hachette/BnF validées ; couverture automatique refusée sans identifiant exact ; couverture utilisateur protégée ; pagination persistée ; cache serveur ISBN et PWA v29. La publication GitHub/PR n’est pas encore autorisée ; la validation réelle de l’export BDGest privé et la validation visuelle iPad/iPhone restent à faire.
+État historique : branche fix/metadata-cover-pipeline ; commits locaux `bbc8706` et `41c5018` ; 64 tests automatisés verts ; fixtures Hachette/BnF validées ; couverture automatique refusée sans identifiant exact ; couverture utilisateur protégée ; pagination persistée ; cache serveur ISBN et PWA v29. Cette section n’est plus l’état courant.
 
 | Test | Validation | PR |
 |---|---|---|

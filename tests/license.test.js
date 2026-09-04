@@ -1,7 +1,11 @@
 import test from 'node:test'; import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {createLicense,verifyLicense,hasFeature} from '../src/license.js';
 const secret='a-very-secret-value';
+const signedPayload=payload=>{const body=Buffer.from(JSON.stringify(payload)).toString('base64url');const sig=crypto.createHmac('sha256',secret).update(body).digest('base64url');return `BDP1.${body}.${sig}`};
 test('licence premium signée',()=>{const k=createLicense({sub:'Erwann'},secret);const l=verifyLicense(k,secret);assert.equal(l.valid,true);assert.equal(l.plan,'premium');assert.equal(hasFeature(l,'mcp'),true)});
 test('signature invalide rejetée',()=>{const k=createLicense({},secret)+'x';assert.equal(verifyLicense(k,secret).valid,false)});
+test('format, plan et dates invalides sont refusés',()=>{assert.equal(verifyLicense('BDP1.a.b.c',secret).reason,'format');assert.equal(verifyLicense(signedPayload({plan:'free'}),secret).reason,'plan');assert.equal(verifyLicense(signedPayload({plan:'premium',issuedAt:'nope'}),secret).reason,'issued-at');assert.equal(verifyLicense(signedPayload({plan:'premium',issuedAt:'2026-01-01T00:00:00Z',expiresAt:'nope'}),secret).reason,'expires-at')});
+test('les features inconnues ne donnent aucun droit',()=>{const l=verifyLicense(createLicense({features:['api','unknown']},secret),secret);assert.equal(hasFeature(l,'api'),true);assert.equal(hasFeature(l,'unknown'),false)});
 test('expiration',()=>{const k=createLicense({expiresAt:'2025-01-01T00:00:00Z'},secret);const l=verifyLicense(k,secret,new Date('2026-01-01T00:00:00Z'));assert.equal(l.reason,'expired')});
 test('clé absente',()=>assert.equal(verifyLicense('',secret).reason,'missing'));

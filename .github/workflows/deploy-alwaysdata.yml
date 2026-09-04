@@ -24,6 +24,7 @@ env:
   PREVIEW_URL: https://tatoune.alwaysdata.net
   ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
   ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY || vars.ALWAYSDATA_API_KEY }}
+  BD_DESK_EDITION: ${{ vars.BD_DESK_EDITION || 'licensed' }}
 
 jobs:
   deploy:
@@ -62,6 +63,11 @@ jobs:
             --exclude 'data/' \
             --exclude 'coverage/' \
             ./ "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/"
+          case "$BD_DESK_EDITION" in
+            free|licensed) ;;
+            *) echo '::error::BD_DESK_EDITION must be free or licensed.'; exit 1 ;;
+          esac
+          printf '%s\n' "$BD_DESK_EDITION" | sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "cat > /home/tatoune/data/bd-desk-edition && chmod 600 /home/tatoune/data/bd-desk-edition"
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "chmod +x '$ALWAYSDATA_TARGET/deploy/alwaysdata-start.sh'"
 
       - name: Verify normalized metadata source deployed
@@ -86,7 +92,7 @@ jobs:
           sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "! grep -F 'media.hachette.fr/imgArticle/GLENAT' '$ALWAYSDATA_TARGET/public/cover-sources.js' >/dev/null"
 
       - name: Configure preview license secret
-        if: env.ALWAYSDATA_PASSWORD != ''
+        if: env.ALWAYSDATA_PASSWORD != '' && env.BD_DESK_EDITION != 'free'
         env:
           SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
           LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
@@ -196,6 +202,7 @@ jobs:
           echo
 
       - name: Activate Premium license for preview
+        if: env.BD_DESK_EDITION != 'free'
         env:
           LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
         run: |

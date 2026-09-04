@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseBdgestCsv, toIsoDate } from './csv.js';
 import { isMechanicalOpenLibraryCover } from './metadata.js';
+import { normalizeAlbumPayload } from './validation.js';
 
 export function openDatabase(dbPath=':memory:') {
   if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(dbPath), {recursive:true});
@@ -118,7 +119,9 @@ export function listAlbums(db, {search='',limit=60,offset=0,series=null,wishlist
   if (wishlist !== null) { where.push('wishlist=?'); params.push(wishlist?1:0); }
   if (read !== null) { where.push('read=?'); params.push(read?1:0); }
   const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const safeLimit=Math.min(Math.max(Number(limit)||60,1),500), safeOffset=Math.max(Number(offset)||0,0);
+  const parsedLimit=Number.parseInt(limit,10), parsedOffset=Number.parseInt(offset,10);
+  const safeLimit=Math.min(Math.max(Number.isInteger(parsedLimit)?parsedLimit:60,1),500);
+  const safeOffset=Math.max(Number.isInteger(parsedOffset)?parsedOffset:0,0);
   const total=db.prepare(`SELECT COUNT(*) c FROM albums ${w}`).get(...params).c;
   const items=db.prepare(`SELECT * FROM albums ${w} ORDER BY COALESCE(purchase_date,'') DESC, series COLLATE NOCASE, CAST(number AS REAL), title COLLATE NOCASE LIMIT ? OFFSET ?`).all(...params,safeLimit,safeOffset);
   return {items,total,limit:safeLimit,offset:safeOffset};
@@ -127,32 +130,28 @@ export function listAlbums(db, {search='',limit=60,offset=0,series=null,wishlist
 export function getAlbum(db,id) { return db.prepare('SELECT * FROM albums WHERE id=?').get(id); }
 
 export function createAlbum(db,a) {
-  const coverUrl=String(a.coverUrl||'').trim()||null;
-  const r=db.prepare(`INSERT INTO albums(isbn,series,number,title,publisher,collection_name,writer,artist,first_edition,read,wishlist,purchase_price,cover_url,cover_origin,cover_source,cover_confidence,cover_checked_at,cover_decision,description,print_date,format,page_count,condition,purchase_date,comment,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    a.isbn||null,a.series||'Sans série',a.number||null,a.title||'Sans titre',a.publisher||null,a.collectionName||a.collection||null,a.writer||null,a.artist||null,a.firstEdition?1:0,a.read?1:0,a.wishlist?1:0,a.purchasePrice??null,coverUrl,coverUrl?'user':null,coverUrl?'manual':null,coverUrl?1:null,coverUrl?new Date().toISOString():null,coverUrl?'user-selected':null,a.description||null,a.printDate||a.publishedDate||null,a.format||null,a.pageCount??null,a.condition||null,a.purchaseDate||null,a.comment||null,a.source||'manual');
+  const value=normalizeAlbumPayload(a), coverUrl=value.coverUrl;
+  const r=db.prepare(`INSERT INTO albums(isbn,series,number,number_alt,title,publisher,collection_name,first_edition,legal_deposit,print_date,market_value,condition,purchase_date,purchase_price,note,writer,artist,wishlist,for_sale,format,followed,page_count,read,read_date,signed,signed_date,comment,cover_url,cover_origin,cover_source,cover_confidence,cover_checked_at,cover_decision,description,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    value.isbn,value.series,value.number,value.numberAlt,value.title,value.publisher,value.collectionName,value.firstEdition,value.legalDeposit,value.printDate,value.marketValue,value.condition,value.purchaseDate,value.purchasePrice,value.note,value.writer,value.artist,value.wishlist,value.forSale,value.format,value.followed,value.pageCount,value.read,value.readDate,value.signed,value.signedDate,value.comment,coverUrl,coverUrl?'user':null,coverUrl?'manual':null,coverUrl?1:null,coverUrl?new Date().toISOString():null,coverUrl?'user-selected':null,value.description,value.source);
   db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('album_created',r.lastInsertRowid,JSON.stringify({title:a.title}));
   return getAlbum(db,r.lastInsertRowid);
 }
 
 export function updateAlbum(db,id,patch) {
-  const allowed={
-    isbn:'isbn',title:'title',series:'series',number:'number',numberAlt:'number_alt',publisher:'publisher',collectionName:'collection_name',
-    writer:'writer',artist:'artist',read:'read',readDate:'read_date',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',
-    marketValue:'market_value',purchasePrice:'purchase_price',purchaseDate:'purchase_date',condition:'condition',note:'note',format:'format',pageCount:'page_count',
-    signed:'signed',signedDate:'signed_date',legalDeposit:'legal_deposit',printDate:'print_date',coverUrl:'cover_url',description:'description',
-    comment:'comment',source:'source'
-  };
-  const booleanFields=new Set(['read','wishlist','forSale','firstEdition','signed']);
+  const current=getAlbum(db,id);
+  if(!current) return null;
+  const value=normalizeAlbumPayload(patch,{partial:true});
+  const allowed={isbn:'isbn',title:'title',series:'series',number:'number',numberAlt:'number_alt',publisher:'publisher',collectionName:'collection_name',writer:'writer',artist:'artist',read:'read',readDate:'read_date',wishlist:'wishlist',forSale:'for_sale',firstEdition:'first_edition',followed:'followed',marketValue:'market_value',purchasePrice:'purchase_price',purchaseDate:'purchase_date',condition:'condition',note:'note',format:'format',pageCount:'page_count',signed:'signed',signedDate:'signed_date',legalDeposit:'legal_deposit',printDate:'print_date',description:'description',comment:'comment',source:'source'};
+  const booleanFields=new Set(['read','wishlist','forSale','firstEdition','followed','signed']);
   const sets=[],vals=[];
-  for (const [k,col] of Object.entries(allowed)) if (k in patch) {
-    if (k === 'coverUrl') continue;
+  for (const [k,col] of Object.entries(allowed)) if (k in value) {
     sets.push(`${col}=?`);
-    vals.push(booleanFields.has(k)?(patch[k]?1:0):patch[k]);
+    vals.push(booleanFields.has(k)?(value[k]?1:0):value[k]);
   }
-  if ('coverUrl' in patch) {
-    const coverUrl=String(patch.coverUrl||'').trim()||null;
+  if ('coverUrl' in value) {
+    const coverUrl=value.coverUrl;
     sets.push('cover_url=?','cover_origin=?','cover_source=?','cover_confidence=?','cover_checked_at=CURRENT_TIMESTAMP','cover_decision=?');
-    vals.push(coverUrl,'user','manual',coverUrl?1:null,coverUrl?'user-selected':'user-cleared');
+    vals.push(coverUrl,coverUrl?'user':null,coverUrl?'manual':null,coverUrl?1:null,coverUrl?'user-selected':'user-cleared');
   }
   if (!sets.length) return getAlbum(db,id);
   sets.push('updated_at=CURRENT_TIMESTAMP');
@@ -253,7 +252,7 @@ export function seriesSummary(db) {
 }
 
 export function dashboard(db) {
-  const stats=db.prepare(`SELECT COUNT(*) albums, COUNT(DISTINCT series) series, SUM(CASE WHEN read=1 THEN 1 ELSE 0 END) read, SUM(CASE WHEN wishlist=1 THEN 1 ELSE 0 END) wishlist, SUM(CASE WHEN first_edition=1 THEN 1 ELSE 0 END) eo, COALESCE(SUM(purchase_price),0) spent FROM albums`).get();
+  const stats=db.prepare(`SELECT COUNT(*) albums, COUNT(DISTINCT series) series, COALESCE(SUM(CASE WHEN read=1 THEN 1 ELSE 0 END),0) read, COALESCE(SUM(CASE WHEN wishlist=1 THEN 1 ELSE 0 END),0) wishlist, COALESCE(SUM(CASE WHEN first_edition=1 THEN 1 ELSE 0 END),0) eo, COALESCE(SUM(purchase_price),0) spent FROM albums`).get();
   const series=seriesSummary(db); const missing=series.reduce((n,s)=>n+s.missing.length,0);
   const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC LIMIT 5`).all();
   const resume=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL) LIMIT 4`).all();

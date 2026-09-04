@@ -4,6 +4,8 @@
 
 Fichier CSV `;` exporté depuis la collection en ligne BDGest, contenant la table `ALBUM` et destiné à l’import dans BD Desk.
 
+Il s'agit bien d'un **import BDGest vers BD Desk**, et non d'une fonction d'export BDGest. Le bouton est disponible uniquement avec le feature `bulk_import` de l'édition licenciée ; le serveur renvoie `402` même si un client tente d'appeler directement la route.
+
 Le parseur :
 
 - gère les champs CSV entre guillemets et les points-virgules internes ;
@@ -12,6 +14,7 @@ Le parseur :
 - conserve les ISBN dupliqués ;
 - convertit les dates `JJ/MM/AAAA` en `AAAA-MM-JJ` ;
 - met à jour un album existant si le même `IdAlbum` BDGest est réimporté.
+- ne génère pas de couverture à partir d'une URL Open Library construite mécaniquement.
 
 ## Sécurité des données
 

@@ -28,7 +28,7 @@ La V3 s'appuie sur la classification existante `phone / tablet / desktop` et ne 
 
 ## Cache
 
-La V3 utilise le cache PWA bd-desk-v29 et le build 2026.09.03.6 afin d’éviter de resservir une ancienne couche de résolution sur iPad/iPhone.
+La V3 utilise le cache PWA `bd-desk-v33` et le build `2026.09.04.1` afin d’éviter de resservir une ancienne couche de résolution sur iPad/iPhone.
 
 ## QA
 
