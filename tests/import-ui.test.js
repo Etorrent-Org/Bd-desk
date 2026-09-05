@@ -13,6 +13,7 @@ test('le sélecteur BDGest reste activable et expose le fichier choisi',async()=
   assert.match(js,/window\.showOpenFilePicker/);
   assert.match(js,/input\.click\(\)/);
   assert.match(js,/selectedFile/);
-  assert.match(css,/\.file-picker input\[type=file\]\{position:absolute/);
-  assert.match(css,/\.file-picker-trigger:focus-visible/);
+  assert.match(css,/\.file-picker\{position:relative/);
+  assert.match(css,/\.file-picker input\[type=file\]\{position:absolute;inset:0;width:100%;height:100%/);
+  assert.match(css,/opacity:0;z-index:2;cursor:pointer/);
 });
