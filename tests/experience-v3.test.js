@@ -18,12 +18,12 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   const html=await read('public/index.html');
   const sw=await read('public/sw.js');
   const app=await read('public/app.js');
-  assert.match(html,/bd-desk-build" content="2026\.09\.05\.1"/);
-  assert.match(app,/sw\.js\?v=20260905-1/);
+  assert.match(html,/bd-desk-build" content="2026\.09\.05\.2"/);
+  assert.match(app,/sw\.js\?v=20260905-2/);
   assert.match(app,/updateViaCache:'none'/);
   assert.match(app,/\/covers\/\$\{encodeURIComponent\(id\)\}\.svg/);
-  assert.match(sw,/bd-desk-v34/);
-  assert.match(sw,/app\.js\?v=20260905-1/);
+  assert.match(sw,/bd-desk-v35/);
+  assert.match(sw,/app\.js\?v=20260905-2/);
 });
 
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
