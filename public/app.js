@@ -93,20 +93,17 @@ function openPremiumGate(title='Fonction Premium',description='Cette fonction es
 }
 function openImport(){
   if(!premium('bulk_import')){openPremiumGate('Import BDGest · Premium','Importez votre collection BDGest avec idempotence, conservation des doublons ISBN et rapport de contrôle.');return;}
-  modal(`<h2>Import massif BDGest</h2><p>CSV exporté depuis BDGest. Un même IdAlbum est mis à jour lors d’un ré-import ; plusieurs exemplaires partageant un ISBN restent distincts.</p><div class="field"><label for="csvFile">Fichier CSV</label><div class="file-picker"><input id="csvFile" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="csvFileName importStatus"><button type="button" class="btn file-picker-trigger" id="chooseCsv">Choisir le fichier</button><span id="csvFileName" class="file-picker-name" aria-live="polite">Aucun fichier sélectionné</span></div></div><small id="importStatus" class="muted" aria-live="polite"></small><div class="modal-actions"><button type="button" class="btn" id="cancel">Annuler</button><button type="button" class="btn primary" id="doImport">Importer</button></div>`);
+  modal(`<h2>Import massif BDGest</h2><p>CSV exporté depuis BDGest. Un même IdAlbum est mis à jour lors d’un ré-import ; plusieurs exemplaires partageant un ISBN restent distincts.</p><div class="field"><label for="csvFile">Fichier CSV</label><div class="file-picker" id="csvPicker"><input id="csvFile" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="csvFileName importStatus"><button type="button" class="btn file-picker-trigger" id="chooseCsv">Choisir le fichier</button><span id="csvFileName" class="file-picker-name" aria-live="polite">Aucun fichier sélectionné</span><small class="file-picker-help">ou glissez-déposez le CSV ici</small></div></div><small id="importStatus" class="muted" aria-live="polite"></small><div class="modal-actions"><button type="button" class="btn" id="cancel">Annuler</button><button type="button" class="btn primary" id="doImport">Importer</button></div>`);
   $('#cancel').onclick=()=>$('#modal').classList.add('hidden');
   const input=$('#csvFile'), fileName=$('#csvFileName'), status=$('#importStatus');
   let selectedFile=null;
   const setSelectedFile=file=>{selectedFile=file||null;fileName.textContent=selectedFile?selectedFile.name:'Aucun fichier sélectionné';status.textContent=''};
   input.onchange=()=>setSelectedFile(input.files?.[0]);
-  $('#chooseCsv').onclick=async()=>{
-    if(window.showOpenFilePicker){
-      try{const [handle]=await window.showOpenFilePicker({multiple:false,types:[{description:'Fichier CSV BDGest',accept:{'text/csv':['.csv'],'application/vnd.ms-excel':['.csv']}}]});setSelectedFile(await handle.getFile())}
-      catch(e){if(e.name!=='AbortError')status.textContent='Sélection du fichier impossible.'}
-      return;
-    }
-    input.click();
-  };
+  $('#chooseCsv').onclick=()=>input.click();
+  const picker=$('#csvPicker');
+  picker.ondragover=e=>{e.preventDefault();picker.classList.add('dragover')};
+  picker.ondragleave=()=>picker.classList.remove('dragover');
+  picker.ondrop=e=>{e.preventDefault();picker.classList.remove('dragover');setSelectedFile(e.dataTransfer?.files?.[0])};
   $('#doImport').onclick=async()=>{
     const f=selectedFile, button=$('#doImport');
     if(!f){status.textContent='Sélectionnez un fichier CSV.';return;}
@@ -169,4 +166,4 @@ function openWebhook(){modal(`<h2>Ajouter un webhook</h2><form id="webhookForm">
 function setTheme(t){state.theme=t;localStorage.setItem('bd-theme',t);document.body.dataset.theme=t;render()}
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-route],#themeBtn,#menuBtn');if(!button)return;if(button.id==='menuBtn'){e.preventDefault();$('.sidebar').classList.toggle('open');return}if(button.id==='themeBtn'){e.preventDefault();go('settings');return}if(button.dataset.route==='add'){openAdd();return}e.preventDefault();go(button.dataset.route)});
 $('#fab').onclick=openAdd;$('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){state.search=e.target.value;go('collection')}};document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement?.tagName!=='INPUT'){e.preventDefault();$('#globalSearch').focus()}});window.addEventListener('hashchange',()=>{state.route=routeFromHash();nav();void render()});
-(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260905-3',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
+(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260905-4',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
