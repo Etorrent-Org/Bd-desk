@@ -1,5 +1,7 @@
 # Licence fonctionnelle Free / Premium
 
+Le MVP distingue l'édition **Free** et l'édition **licenciée**. `BD_DESK_EDITION=free` désactive volontairement l'activation de licence ; `BD_DESK_EDITION=licensed` autorise l'activation d'un jeton valide. Gold est hors périmètre.
+
 ## Format
 
 Une licence Premium est un jeton :
@@ -27,6 +29,20 @@ npm run license:generate -- client-123 2027-09-01T00:00:00Z
 ```
 
 Le secret de signature reste exclusivement côté éditeur/serveur. Une instance de production refuse les secrets de développement connus.
+
+Configuration minimale :
+
+```bash
+# Free, sans secrets de licence
+BD_DESK_EDITION=free
+
+# Licenciée, avec secrets distincts et aléatoires de 32 caractères minimum
+BD_DESK_EDITION=licensed
+BD_DESK_LICENSE_SECRET='…'
+WEBHOOK_SIGNING_SECRET='…'
+```
+
+Une édition licenciée sans jeton activé reste en plan gratuit. Le jeton est stocké dans la base locale de l'instance et n'est jamais renvoyé au navigateur.
 
 ## Validation
 

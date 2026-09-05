@@ -13,7 +13,7 @@ Le seuil CI impose :
 - fonctions ≥ 90 % ;
 - branches ≥ 70 %.
 
-La mesure locale de la passe du 04/09/2026 est de **99,58 % lignes**, **95,15 % fonctions** et **76,53 % branches** sur l’ensemble testé ; les trois seuils sont respectés. Cette mesure remplace les chiffres historiques affichés dans les anciennes notes QA.
+La mesure locale de la passe du 04/09/2026 est de **99,64 % lignes**, **95,11 % fonctions** et **78,25 % branches** sur l’ensemble testé ; les trois seuils sont respectés. La suite compte **86 tests**. Cette mesure remplace les chiffres historiques affichés dans les anciennes notes QA.
 
 ## Périmètre des tests
 

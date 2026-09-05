@@ -31,6 +31,7 @@ flowchart LR
 - **Recherche v1** : SQL indexé (`title`, `series`, `isbn`). Meilisearch reste une évolution possible si le catalogue global devient volumineux.
 - **Métadonnées** : adaptateurs indépendants et tolérants aux pannes.
 - **Licence** : jeton signé HMAC SHA-256, contrôlé côté serveur.
+- **Éditions** : `BD_DESK_EDITION=free|licensed`; Free est le défaut local et l'édition licenciée active ses modules par features du jeton. Gold n'est pas implémenté dans ce MVP.
 - **API** : clés aléatoires 192 bits, stockées uniquement sous forme de hash SHA-256.
 - **MCP** : endpoint HTTP stateless protégé par clé API et licence Premium.
 
@@ -41,6 +42,12 @@ Le serveur centralise la résolution dans src/metadata.js. Les cinq fournisseurs
 Le résolveur interdit la sélection automatique d’un candidat qui ne porte pas l’identifiant demandé. Une couverture n’est éligible que si le même record apporte cet identifiant et une URL issue d’un fournisseur reconnu. Le client PWA ne choisit plus d’URL fournisseur à partir du seul titre : il appelle POST /api/albums/:id/cover/resolve, vérifie encore que l’image est exploitable avant affichage et limite les appels concurrents.
 
 La persistance distingue les couvertures user et machine. L’enrichissement éditorial remplit seulement les champs absents ; la décision de couverture utilise une migration pour rendre remplaçables les anciennes URLs Open Library mécaniques tout en protégeant les couvertures existantes saisies par le collectionneur. Chaque décision est auditée dans metadata_provenance.
+
+## Éditions et droits
+
+Le serveur expose `GET /api/capabilities` pour que la PWA connaisse l'édition (`free` ou `licensed`), le plan actif et la liste des features. Les routes Premium recalculent le droit côté serveur à chaque requête ; un état client ou un bouton visible ne peut donc pas ouvrir l'import BDGest, l'enrichissement, les statistiques avancées, l'API, les webhooks ou MCP.
+
+La collection Free est paginée par l'API (`limit`/`offset`) mais n'est pas plafonnée par une règle produit. La PWA affiche 60 albums par page pour rester utilisable sur smartphone, tablette et desktop.
 
 ## Interface adaptative universelle
 
@@ -93,7 +100,7 @@ Matrice cible :
 
 Les cartes conservent la couverture comme élément principal et réduisent les métadonnées secondaires. Sur smartphone portrait, la troisième ligne descriptive est masquée pour limiter la hauteur. La barre de filtre de collection est sticky et compacte.
 
-Cette couche a été développée dans une branche dédiée, validée automatiquement puis déployée sur `main` avec le **Deploy #113**. Les commits antérieurs restent disponibles dans l'historique Git pour un retour arrière si nécessaire.
+Cette couche est développée dans une branche dédiée et doit passer les gates automatiques avant fusion et déploiement. Les commits antérieurs restent disponibles dans l'historique Git pour un retour arrière si nécessaire.
 
 Voir [`UI-CATALOG.md`](UI-CATALOG.md) pour le contrat visuel détaillé.
 

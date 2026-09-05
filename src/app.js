@@ -9,6 +9,7 @@ import { verifyLicense, hasFeature } from './license.js';
 import { fetchMetadata, resolveCandidates } from './metadata.js';
 import { handleMcp, validateMcpHttp, MCP_PROTOCOL_VERSION } from './mcp.js';
 import { dispatchWebhook } from './webhooks.js';
+import { normalizeAlbumPayload, normalizeLoanPayload, normalizeWebhookPayload, normalizeApiKeyPayload } from './validation.js';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.resolve(__dirname,'../public');
@@ -51,6 +52,9 @@ async function fetchCover(fetchImpl,url){
 }
 
 export function createBdDeskApp(config, opts={}){
+  const edition=config.edition || 'free';
+  if(!['free','licensed'].includes(edition)) throw new Error('BD_DESK_EDITION doit être free ou licensed');
+  const licenseEnabled=edition==='licensed';
   const db=opts.db||openDatabase(config.dbPath);
   if(opts.seed!==false) seedIfEmpty(db,config.seedCsvPath);
   const metadataFetcher=opts.fetchMetadataImpl||fetchMetadata;
@@ -58,10 +62,15 @@ export function createBdDeskApp(config, opts={}){
   const metadataCacheTtlMs=Number(config.metadataCacheTtlMs)>0?Number(config.metadataCacheTtlMs):300_000;
   const webhookDispatcher=opts.dispatchWebhookImpl||dispatchWebhook;
   const coverFetcher=opts.coverFetchImpl||fetch;
-  const getLicense=()=>verifyLicense(db.prepare(`SELECT value FROM settings WHERE key='license'`).get()?.value,config.licenseSecret);
+  const getLicense=()=>licenseEnabled?verifyLicense(db.prepare(`SELECT value FROM settings WHERE key='license'`).get()?.value,config.licenseSecret):{valid:false,plan:'free',reason:'free-edition'};
   const premium=(feature)=>hasFeature(getLicense(),feature);
   function authenticateApiKey(req){ const token=bearer(req)||req.headers['x-api-key']; if(!token)return false; const row=db.prepare('SELECT id FROM api_keys WHERE key_hash=? AND revoked_at IS NULL').get(hash(String(token))); if(row)db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(row.id); return Boolean(row); }
-  async function emit(event,payload){ const hooks=db.prepare('SELECT * FROM webhooks WHERE enabled=1').all().filter(h=>JSON.parse(h.events).includes(event)||JSON.parse(h.events).includes('*')); for(const hook of hooks){ try{await webhookDispatcher(hook,event,payload,{secret:config.webhookSigningSecret});}catch{} } }
+  async function emit(event,payload){
+    const hooks=db.prepare('SELECT * FROM webhooks WHERE enabled=1').all().filter(h=>{
+      try { const events=JSON.parse(h.events); return Array.isArray(events)&&(events.includes(event)||events.includes('*')); } catch { return false; }
+    });
+    for(const hook of hooks){ try{await webhookDispatcher(hook,event,payload,{secret:config.webhookSigningSecret});}catch{} }
+  }
   async function metadataFor(isbn){
     const key=canonicalIsbn(isbn);
     if(!key)return [];
@@ -79,8 +88,20 @@ export function createBdDeskApp(config, opts={}){
       const url=new URL(req.url,'http://localhost'), p=url.pathname;
       let m;
       if(p==='/api/health') return json(res,200,{ok:true,service:'bd-desk',version:'1.0.0',albums:db.prepare('SELECT COUNT(*) c FROM albums').get().c});
-      if(p==='/api/license'&&req.method==='GET'){ const l=getLicense(); return json(res,200,{plan:l.valid?l.plan:'free',valid:l.valid,features:l.payload?.features||[]}); }
-      if(p==='/api/license/activate'&&req.method==='POST'){ const {key}=await jsonBody(req); const l=verifyLicense(key,config.licenseSecret); if(!l.valid)return json(res,400,{error:'Licence invalide',reason:l.reason}); db.prepare(`INSERT INTO settings(key,value) VALUES('license',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(key); return json(res,200,{ok:true,plan:l.plan,features:l.payload.features}); }
+      if(p==='/api/license'&&req.method==='GET'){ const l=getLicense(); return json(res,200,{edition,plan:l.valid?l.plan:'free',valid:l.valid,features:l.valid?l.payload?.features||[]:[]}); }
+      if(p==='/api/license/activate'&&req.method==='POST'){
+        if(!licenseEnabled)return json(res,402,{error:'Cette édition Free ne prend pas en charge les licences Premium'});
+        const payload=await jsonBody(req), key=typeof payload?.key==='string'?payload.key.trim():'';
+        if(!key)return json(res,400,{error:'Clé de licence requise'});
+        const l=verifyLicense(key,config.licenseSecret);
+        if(!l.valid)return json(res,400,{error:'Licence invalide',reason:l.reason});
+        db.prepare(`INSERT INTO settings(key,value) VALUES('license',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(key);
+        return json(res,200,{ok:true,edition,plan:l.plan,features:l.payload.features});
+      }
+      if(p==='/api/capabilities'&&req.method==='GET'){
+        const l=getLicense();
+        return json(res,200,{edition,plan:l.valid&&l.plan==='premium'?'premium':'free',features:l.valid?l.payload?.features||[]:[],free:['collection','manual_add','scan','search','wishlist','loans','history','export','basic_stats','themes'],premium:['bulk_import','metadata_auto','advanced_stats','api','webhooks','mcp']});
+      }
       if(p==='/api/dashboard') return json(res,200,dashboard(db));
       if(p==='/api/stats') return json(res,200,basicStats(db));
       if(p==='/api/stats/advanced'){ if(!premium('advanced_stats'))return json(res,402,{error:'Premium requis',feature:'advanced_stats'}); return json(res,200,stats(db)); }
@@ -89,14 +110,22 @@ export function createBdDeskApp(config, opts={}){
       if(p==='/api/publishers') return json(res,200,publishersSummary(db));
       if(p==='/api/history') return json(res,200,db.prepare('SELECT * FROM history ORDER BY id DESC LIMIT 100').all());
       if(p==='/api/loans'&&req.method==='GET') return json(res,200,db.prepare(`SELECT loans.*,albums.title,albums.series,albums.cover_url FROM loans JOIN albums ON albums.id=loans.album_id ORDER BY returned_at IS NULL DESC, loaned_at DESC`).all());
-      if(p==='/api/loans'&&req.method==='POST'){ const a=await jsonBody(req); if(!getAlbum(db,a.albumId)||!String(a.borrower||'').trim())return json(res,400,{error:'Album et emprunteur requis'}); const r=db.prepare('INSERT INTO loans(album_id,borrower,due_at) VALUES(?,?,?)').run(a.albumId,String(a.borrower).trim(),a.dueAt||null); const id=Number(r.lastInsertRowid); db.prepare('INSERT INTO history(event,album_id,detail) VALUES(?,?,?)').run('loan_created',a.albumId,JSON.stringify({loanId:id,borrower:a.borrower})); await emit('loan.created',{id,albumId:a.albumId,borrower:a.borrower,dueAt:a.dueAt||null}); return json(res,201,{id}); }
+      if(p==='/api/loans'&&req.method==='POST'){
+        const a=normalizeLoanPayload(await jsonBody(req));
+        if(!getAlbum(db,a.albumId))return json(res,400,{error:'Album introuvable'});
+        const r=db.prepare('INSERT INTO loans(album_id,borrower,due_at) VALUES(?,?,?)').run(a.albumId,a.borrower,a.dueAt);
+        const id=Number(r.lastInsertRowid);
+        db.prepare('INSERT INTO history(event,album_id,detail) VALUES (?,?,?)').run('loan_created',a.albumId,JSON.stringify({loanId:id,borrower:a.borrower}));
+        await emit('loan.created',{id,albumId:a.albumId,borrower:a.borrower,dueAt:a.dueAt});
+        return json(res,201,{id});
+      }
       m=p.match(/^\/api\/loans\/(\d+)\/return$/);
       if(m&&req.method==='PATCH'){ const loan=db.prepare('SELECT * FROM loans WHERE id=?').get(m[1]); if(!loan)return json(res,404,{error:'Prêt introuvable'}); db.prepare('UPDATE loans SET returned_at=COALESCE(returned_at,CURRENT_TIMESTAMP) WHERE id=?').run(m[1]); db.prepare('INSERT INTO history(event,album_id,detail) VALUES(?,?,?)').run('loan_returned',loan.album_id,JSON.stringify({loanId:Number(m[1])})); await emit('loan.returned',{id:Number(m[1]),albumId:loan.album_id}); return json(res,200,{ok:true}); }
       if(p==='/api/albums'&&req.method==='GET'){ return json(res,200,listAlbums(db,{search:url.searchParams.get('search')||'',limit:url.searchParams.get('limit')||60,offset:url.searchParams.get('offset')||0,series:url.searchParams.get('series'),wishlist:url.searchParams.has('wishlist')?url.searchParams.get('wishlist')==='1':null,read:url.searchParams.has('read')?url.searchParams.get('read')==='1':null})); }
       if(p==='/api/discover'&&req.method==='GET'){ const isbn=canonicalIsbn(url.searchParams.get('isbn')); if(!isbn)return json(res,400,{error:'ISBN valide requis'}); const candidates=await metadataFor(isbn); const resolution=resolveCandidates(isbn,candidates); return json(res,200,{isbn,candidates,resolution}); }
       if(p==='/api/export/collection.json'&&req.method==='GET') return json(res,200,{exportedAt:new Date().toISOString(),albums:exportCollection(db)},{'content-disposition':'attachment; filename=bd-desk-collection.json'});
       if(p==='/api/editions/anomalies'&&req.method==='GET'){ if(!premium('advanced_stats'))return json(res,402,{error:'Premium requis',feature:'advanced_stats'}); return json(res,200,editionAnomalies(db)); }
-      if(p==='/api/albums'&&req.method==='POST'){ const a=await jsonBody(req); a.isbn=canonicalIsbn(a.isbn); const created=createAlbum(db,a); await emit('album.created',created); return json(res,201,created); }
+      if(p==='/api/albums'&&req.method==='POST'){ const a=normalizeAlbumPayload(await jsonBody(req)); const created=createAlbum(db,a); await emit('album.created',created); return json(res,201,created); }
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/resolve$/);
       if(m&&req.method==='POST'){ const a=getAlbum(db,m[1]); if(!a)return json(res,404,{error:'Album introuvable'}); if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'}); if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const decision=persistCoverDecision(db,a.id,resolution.cover); return json(res,200,{album:decision.album,resolution,candidates,changed:decision.updated,reason:decision.reason}); }
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/image$/);
@@ -110,19 +139,33 @@ export function createBdDeskApp(config, opts={}){
       }
       m=p.match(/^\/api\/albums\/(\d+)$/);
       if(m&&req.method==='GET'){ const a=getAlbum(db,m[1]); return a?json(res,200,a):json(res,404,{error:'Album introuvable'}); }
-      if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],await jsonBody(req)); if(!a)return json(res,404,{error:'Album introuvable'}); await emit('album.updated',a); return json(res,200,a); }
+      if(m&&req.method==='PATCH'){ const a=updateAlbum(db,m[1],normalizeAlbumPayload(await jsonBody(req),{partial:true})); if(!a)return json(res,404,{error:'Album introuvable'}); await emit('album.updated',a); return json(res,200,a); }
       if(m&&req.method==='DELETE'){ const ok=deleteAlbum(db,m[1]); return json(res,ok?200:404,{ok}); }
       m=p.match(/^\/api\/metadata\/(\d+)\/enrich$/);
       if(m&&req.method==='POST'){ if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'}); const a=getAlbum(db,m[1]); if(!a||!a.isbn)return json(res,400,{error:'ISBN requis'}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const applied=applyMetadataResolution(db,a.id,resolution); await emit('album.enriched',{album:applied.album,provenance:applied.provenance,cover:applied.cover}); return json(res,200,{album:applied.album,candidates,resolution,provenance:applied.provenance,changed:applied.updatedFields.length>0||applied.cover.updated}); }
-      if(p==='/api/import/bdgest'&&req.method==='POST'){ if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'}); const csv=await body(req); const result=importBdgest(db,csv); await emit('collection.imported',result); return json(res,200,result); }
+      if(p==='/api/import/bdgest'&&req.method==='POST'){ if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'}); const csv=await body(req); if(!csv.trim())return json(res,400,{error:'Fichier CSV BDGest vide'}); const result=importBdgest(db,csv); if(!result.rows)return json(res,400,{error:'Format BDGest introuvable : aucune ligne ALBUM'}); await emit('collection.imported',result); return json(res,200,result); }
       if(p==='/api/keys'&&req.method==='GET'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT id,name,prefix,created_at,last_used_at,revoked_at FROM api_keys ORDER BY id DESC').all()); }
-      if(p==='/api/keys'&&req.method==='POST'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const {name='API'}=await jsonBody(req), key=randomKey(); const r=db.prepare('INSERT INTO api_keys(name,key_hash,prefix) VALUES(?,?,?)').run(name,hash(key),key.slice(0,12)); return json(res,201,{id:Number(r.lastInsertRowid),key,name,warning:'Cette clé ne sera plus affichée.'}); }
+      if(p==='/api/keys'&&req.method==='POST'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const {name}=normalizeApiKeyPayload(await jsonBody(req)), key=randomKey(); const r=db.prepare('INSERT INTO api_keys(name,key_hash,prefix) VALUES(?,?,?)').run(name,hash(key),key.slice(0,12)); return json(res,201,{id:Number(r.lastInsertRowid),key,name,warning:'Cette clé ne sera plus affichée.'}); }
       m=p.match(/^\/api\/keys\/(\d+)$/);
       if(m&&req.method==='DELETE'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const r=db.prepare('UPDATE api_keys SET revoked_at=CURRENT_TIMESTAMP WHERE id=? AND revoked_at IS NULL').run(m[1]); return json(res,r.changes?200:404,{ok:Boolean(r.changes)}); }
       if(p==='/api/webhooks'&&req.method==='GET'){ if(!premium('webhooks'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT * FROM webhooks ORDER BY id DESC').all().map(h=>({...h,events:JSON.parse(h.events)}))); }
-      if(p==='/api/webhooks'&&req.method==='POST'){ if(!premium('webhooks'))return json(res,402,{error:'Premium requis'}); const a=await jsonBody(req); if(!/^https?:\/\//.test(a.url||''))return json(res,400,{error:'URL invalide'}); const r=db.prepare('INSERT INTO webhooks(name,url,events) VALUES(?,?,?)').run(a.name||'Webhook',a.url,JSON.stringify(a.events||['*'])); return json(res,201,{id:Number(r.lastInsertRowid)}); }
+      if(p==='/api/webhooks'&&req.method==='POST'){
+        if(!premium('webhooks'))return json(res,402,{error:'Premium requis'});
+        const {name,url,events}=normalizeWebhookPayload(await jsonBody(req));
+        const r=db.prepare('INSERT INTO webhooks(name,url,events) VALUES(?,?,?)').run(name,url,JSON.stringify(events));
+        return json(res,201,{id:Number(r.lastInsertRowid)});
+      }
       m=p.match(/^\/api\/webhooks\/(\d+)$/);
-      if(m&&req.method==='PATCH'){ if(!premium('webhooks'))return json(res,402,{error:'Premium requis'}); const a=await jsonBody(req); const current=db.prepare('SELECT * FROM webhooks WHERE id=?').get(m[1]); if(!current)return json(res,404,{error:'Webhook introuvable'}); const name=a.name??current.name,urlValue=a.url??current.url,events=a.events??JSON.parse(current.events),enabled=a.enabled==null?current.enabled:(a.enabled?1:0); if(!/^https?:\/\//.test(urlValue))return json(res,400,{error:'URL invalide'}); db.prepare('UPDATE webhooks SET name=?,url=?,events=?,enabled=? WHERE id=?').run(name,urlValue,JSON.stringify(events),enabled,m[1]); return json(res,200,{ok:true}); }
+      if(m&&req.method==='PATCH'){
+        if(!premium('webhooks'))return json(res,402,{error:'Premium requis'});
+        const a=await jsonBody(req), current=db.prepare('SELECT * FROM webhooks WHERE id=?').get(m[1]);
+        if(!current)return json(res,404,{error:'Webhook introuvable'});
+        let currentEvents=[]; try { currentEvents=JSON.parse(current.events); } catch {}
+        const normalized=normalizeWebhookPayload({...a,name:a?.name??current.name,url:a?.url??current.url,events:a?.events??currentEvents},{partial:false});
+        const enabled=normalized.enabled??current.enabled;
+        db.prepare('UPDATE webhooks SET name=?,url=?,events=?,enabled=? WHERE id=?').run(normalized.name,normalized.url,JSON.stringify(normalized.events),enabled,m[1]);
+        return json(res,200,{ok:true});
+      }
       if(m&&req.method==='DELETE'){ if(!premium('webhooks'))return json(res,402,{error:'Premium requis'}); const r=db.prepare('DELETE FROM webhooks WHERE id=?').run(m[1]); return json(res,r.changes?200:404,{ok:Boolean(r.changes)}); }
       if(p==='/api/v1/collection'&&req.method==='GET'){ if(!premium('api')||!authenticateApiKey(req))return json(res,401,{error:'API Premium + clé requise'}); return json(res,200,{dashboard:dashboard(db),albums:listAlbums(db,{limit:url.searchParams.get('limit')||100})}); }
       if(p==='/mcp'&&req.method==='POST'){
@@ -134,7 +177,8 @@ export function createBdDeskApp(config, opts={}){
       }
       if(p==='/mcp') return json(res,405,{error:'MCP 2026-07-28 utilise POST'},{allow:'POST','mcp-protocol-version':MCP_PROTOCOL_VERSION});
       if(p.startsWith('/api/')) return json(res,404,{error:'Route API inconnue'});
-      let file=p==='/'?'index.html':p.replace(/^\//,''); file=path.resolve(PUBLIC,file); if(!file.startsWith(PUBLIC)){res.writeHead(403,{'content-type':'text/plain; charset=utf-8'});return res.end('Forbidden');}
+      let file=p==='/'?'index.html':p.replace(/^\//,''); file=path.resolve(PUBLIC,file);
+      if(file!==PUBLIC&&!file.startsWith(PUBLIC+path.sep)){res.writeHead(403,{'content-type':'text/plain; charset=utf-8'});return res.end('Forbidden');}
       if(!fs.existsSync(file)||fs.statSync(file).isDirectory()) file=path.join(PUBLIC,'index.html');
       const ext=path.extname(file); res.writeHead(200,{'content-type':mime[ext]||'application/octet-stream','cache-control':ext==='.html'?'no-cache':'public, max-age=3600','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin','permissions-policy':'camera=(self)','content-security-policy':"default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"}); fs.createReadStream(file).pipe(res);
     }catch(e){ json(res,e.status||500,{error:e.message||'Erreur interne'}); }

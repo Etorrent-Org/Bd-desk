@@ -8,7 +8,7 @@ import {MCP_PROTOCOL_VERSION} from '../src/mcp.js';
 async function withServer(fn,options={}){
   const db=openDatabase(':memory:');
   createAlbum(db,{series:'Saga',number:'1',title:'Premier',isbn:'9782203237766'});
-  const config={dbPath:':memory:',seedCsvPath:null,licenseSecret:'secret-123',googleBooksApiKey:'',webhookSigningSecret:'hook',allowedOrigins:['https://client.test']};
+  const config={dbPath:':memory:',seedCsvPath:null,licenseSecret:'secret-123',googleBooksApiKey:'',webhookSigningSecret:'hook',allowedOrigins:['https://client.test'],edition:options.edition||'licensed'};
   let metadataCalls=0;
   const metadataFetcher=async isbn=>{metadataCalls++;return[{source:'bnf',sourceId:'x',title:'Titre BnF',publisher:'Editeur BnF',publishedDate:'2024',identifiers:[isbn],coverIdentifiers:[isbn],coverUrl:'https://openapi.bnf.fr/couverture/'+isbn,coverEvidence:{official:true}}]};
   const webhookCalls=[];
@@ -84,3 +84,37 @@ test('proxy de couverture rejette un contenu non image',()=>withServer(async({ba
   const r=await fetch(base+'/api/albums/'+a.id+'/cover/image');
   assert.equal(r.status,502);
 },{coverFetchImpl:async()=>new Response('not-an-image',{status:200,headers:{'content-type':'text/plain'}})}));
+
+test('capabilities et validation des entrées protègent le MVP Free',()=>withServer(async({base})=>{
+  let r=await fetch(base+'/api/capabilities');
+  const capabilities=await r.json();
+  assert.equal(capabilities.plan,'free');
+  assert.ok(capabilities.free.includes('collection'));
+  assert.ok(capabilities.premium.includes('bulk_import'));
+  r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({series:'Saga',title:'Erreur',isbn:'9782203237767'})});
+  assert.equal(r.status,400);
+  r=await fetch(base+'/api/albums',{method:'POST',headers:{'content-type':'application/json'},body:'null'});
+  assert.equal(r.status,400);
+  r=await fetch(base+'/api/loans',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({albumId:1,borrower:' '})});
+  assert.equal(r.status,400);
+}));
+
+test('l’édition Free désactive réellement les modules licenciés',()=>withServer(async({base,config})=>{
+  const capabilities=await (await fetch(base+'/api/capabilities')).json();
+  assert.equal(capabilities.edition,'free');
+  assert.equal((await (await fetch(base+'/api/license')).json()).plan,'free');
+  let r=await fetch(base+'/api/license/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:createLicense({},config.licenseSecret)})});
+  assert.equal(r.status,402);
+  r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:'Table;IdAlbum;Titre\nALBUM;1;Test'});
+  assert.equal(r.status,402);
+},{edition:'free'}));
+
+test('les entrées Premium restent strictement validées',()=>withServer(async({base,config})=>{
+  await activate(base,config);
+  let r=await fetch(base+'/api/keys',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:{}})});assert.equal(r.status,400);
+  r=await fetch(base+'/api/webhooks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'x',url:'https://user:pass@example.test/hook',events:['*']})});assert.equal(r.status,400);
+  r=await fetch(base+'/api/webhooks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'x',url:'https://example.test/hook',events:['*']})});assert.equal(r.status,201);
+  const id=(await r.json()).id;
+  r=await fetch(base+'/api/webhooks/'+id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({enabled:'false'})});assert.equal(r.status,400);
+  r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:'not a BDGest export'});assert.equal(r.status,400);
+}));

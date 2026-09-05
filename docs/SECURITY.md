@@ -2,7 +2,7 @@
 
 ## Mesures v1
 
-- Secrets obligatoires en environnement `production`.
+- Secrets obligatoires en environnement `production` pour l'édition `licensed` ; l'édition `free` n'en a pas besoin.
 - Licence HMAC SHA-256 côté serveur.
 - Clés API aléatoires, hashées en base et révocables.
 - Webhooks signés avec `X-BD-Desk-Signature: sha256=…`.

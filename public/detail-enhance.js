@@ -10,6 +10,7 @@
   const row=(label,value)=>clean(value)?`<div class="info-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`:'';
   const badge=(label,kind='')=>`<span class="detail-badge ${kind}">${esc(label)}</span>`;
   const flash=message=>{let t=document.getElementById('detailFlash');if(!t){t=document.createElement('div');t.id='detailFlash';t.className='toast';document.body.appendChild(t)}t.textContent=message;t.classList.remove('hidden');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.add('hidden'),2200)};
+  let enhancing=false;
 
   async function resolveAlbum(){
     const id=drawer.querySelector('[data-detail-album]')?.dataset.detailAlbum || drawer.dataset.albumId;
@@ -21,7 +22,8 @@
   }
 
   function renderRich(a,provenance=[]){
-    drawer.dataset.albumId=a.id;
+    drawer.dataset.albumId=String(a.id);
+    drawer.dataset.richRenderedId=String(a.id);
     const hero=drawer.querySelector('.detail-hero');
     if(hero){
       hero.setAttribute('data-detail-album',a.id);
@@ -71,7 +73,7 @@
 
   async function runEnrichment(){
     const album=await resolveAlbum().catch(()=>null);if(!album){flash('Album introuvable');return}
-    const license=await fetch('/api/license').then(r=>r.json()).catch(()=>({plan:'free'}));if(license.plan!=='premium'){openPremiumInfo();return}
+    const license=await fetch('/api/license').then(r=>r.json()).catch(()=>({plan:'free',features:[]}));if(license.plan!=='premium'||!license.features?.includes('metadata_auto')){openPremiumInfo();return}
     flash('Enrichissement en cours…');
     const r=await fetch('/api/metadata/'+album.id+'/enrich',{method:'POST'});const data=await r.json().catch(()=>({}));
     if(!r.ok){flash(data.error||'Enrichissement impossible');return}
@@ -85,10 +87,14 @@
   }
 
   async function enhance(){
-    if(drawer.classList.contains('hidden'))return;
+    if(drawer.classList.contains('hidden')||enhancing)return;
     const body=drawer.querySelector('.detail-body'),toolbar=body?.querySelector('.toolbar');if(!body||!toolbar)return;
     if(!document.getElementById('editAlbumBtn')){const edit=document.createElement('button');edit.className='btn';edit.id='editAlbumBtn';edit.textContent='✎ Modifier';const enrich=document.getElementById('enrichBtn');if(enrich){enrich.innerHTML='✦ Enrichir <span class="premium-chip">Premium</span>';toolbar.insertBefore(edit,enrich)}else toolbar.appendChild(edit);edit.onclick=async()=>{const a=await resolveAlbum().catch(()=>null);if(a)openEdit(a)}}
-    const album=await resolveAlbum().catch(()=>null);if(album)renderRich(album);
+    const expectedId=String(drawer.dataset.albumId||'');
+    if(expectedId&&drawer.dataset.richRenderedId===expectedId&&drawer.querySelector('.album-rich-detail'))return;
+    enhancing=true;
+    try{const album=await resolveAlbum().catch(()=>null);if(album)renderRich(album);}
+    finally{enhancing=false;}
   }
 
   drawer.addEventListener('click',e=>{const b=e.target.closest?.('#enrichBtn');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();runEnrichment()},true);

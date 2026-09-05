@@ -11,6 +11,15 @@ components:
       type: http
       scheme: bearer
   schemas:
+    Capabilities:
+      type: object
+      required: [edition, plan, features, free, premium]
+      properties:
+        edition: {type: string, enum: [free, licensed]}
+        plan: {type: string, enum: [free, premium]}
+        features: {type: array, items: {type: string}}
+        free: {type: array, items: {type: string}}
+        premium: {type: array, items: {type: string}}
     Album:
       type: object
       properties:
@@ -62,6 +71,16 @@ paths:
       responses:
         '200': {description: Licence activée}
         '400': {description: Licence invalide}
+        '402': {description: L'édition Free ne peut pas activer de licence}
+  /api/capabilities:
+    get:
+      summary: Capacités de l'édition et du plan actif
+      responses:
+        '200':
+          description: Free ou licencié avec features actives
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Capabilities'}
   /api/dashboard:
     get:
       summary: KPI d'accueil

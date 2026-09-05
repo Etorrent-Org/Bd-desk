@@ -9,6 +9,7 @@
 - Le résolveur de métadonnées est générique : il rapproche les fournisseurs par ISBN/EAN exact, conserve la provenance et accepte une couverture automatique uniquement avec une preuve d’identité exploitable. Le catalogue officiel Hachette utilisé par Glénat complète BnF, Google Books et Open Library.
 - Une URL Open Library construite mécaniquement n’est jamais enregistrée comme couverture. Les couvertures existantes issues de l’ancien comportement sont marquées machine et remplaçables ; une couverture saisie par le collectionneur reste protégée.
 - Une fonction Premium n'est jamais seulement masquée dans l'interface : elle est **contrôlée côté serveur** par une licence signée.
+- Le MVP est disponible en deux éditions explicites : `free` par défaut en local, ou `licensed` avec une licence Premium valide. La partie Gold est volontairement hors périmètre.
 - Les données personnelles du collectionneur ne sont jamais écrasées silencieusement par le moteur de métadonnées.
 
 ## Interface adaptative universelle
@@ -40,14 +41,14 @@ La couche `public/catalog-ui.css` ajoute :
 - métadonnées réduites sous les couvertures pour favoriser la densité ;
 - KPI d'accueil plus compacts et derniers ajouts alignés sur le même langage de grille.
 
-Cette refonte et les correctifs de couverture ont été déployés sur la preview AlwaysData ; la dernière exécution de déploiement est le **Deploy #113**. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
+Cette refonte est livrée avec une invalidation PWA explicite et un workflow de preview contrôlable en Free ou licencié. Le détail de la direction visuelle se trouve dans [`docs/UI-CATALOG.md`](docs/UI-CATALOG.md).
 
 ## État courant
 
 - CI Node.js 22 et 24, couverture et smoke tests sont exécutés à chaque changement.
 - La CI contrôle aussi la syntaxe des scripts frontend critiques et le contrat de l'interface adaptative mobile.
-- **Catalogue visuel et résolveur couverture sur `main`** : CI #197 verte, Deploy #113 validé ; la dernière série de correctifs est portée par le commit [`9c2628f`](https://github.com/Etorrent-Org/Bd-desk/commit/9c2628ff6a35ccc8f06e45295c420d996736fc7a).
-- Preview alwaysdata : synchronisation SSH, `/api/health` et contrôle live de normalisation BnF **validés** sur `main`.
+- **MVP Free/licencié** : édition, capacités et droits sont vérifiés côté serveur ; la passe locale actuelle est suivie dans [`docs/QA-TRACKING.md`](docs/QA-TRACKING.md) avant publication.
+- Preview AlwaysData : le workflow synchronise SSH, redémarre le site et vérifie `/api/health`, les couvertures et la normalisation live après fusion.
 - Live QA fournisseurs : le catalogue Hachette/Glénat, BnF Dublin Core/Intermarc, Open Library et Google Books sont isolés par fournisseur ; Google Books peut être limité en CI par le quota anonyme HTTP 429 sans clé dédiée.
 - Le cas de référence Sweet Revenge (EAN 9782344059814) est couvert par des fixtures locales et la résolution attendue est : Valhalla Bunker, tome 1, Glénat, Comix Buro, 2024-08-21, 64 pages, 24 × 32 cm, Fabien Bedouel, avec couverture officielle Hachette.
 - Import BDGest de référence contrôlé localement le 04/09/2026 avec la procédure d’idempotence et de fidélité champ par champ. Le fichier privé et les résultats détaillés ne sont jamais committés ; la procédure est décrite dans [`docs/VALIDATION-BDGEST.md`](docs/VALIDATION-BDGEST.md).
@@ -75,7 +76,7 @@ Prérequis : Node.js 22.5+ (Node 24 recommandé).
 
 ```bash
 cp .env.example .env
-# renseigner au minimum les secrets en production
+# `BD_DESK_EDITION=free` suffit pour le MVP Free ; renseigner les deux secrets pour `licensed` en production.
 npm test
 npm start
 ```
@@ -94,14 +95,14 @@ npm run seed
 
 ```bash
 cp .env.example .env
-# définir BD_DESK_LICENSE_SECRET et WEBHOOK_SIGNING_SECRET
+# Free fonctionne sans secret ; pour l'édition licenciée, définir les deux secrets.
 
 docker compose up -d --build
 ```
 
 L'application écoute sur le port `3096`.
 
-## Premium
+## MVP licencié
 
 Générer une licence avec le même secret que l'instance :
 
@@ -110,6 +111,8 @@ BD_DESK_LICENSE_SECRET='votre-secret-long' npm run license:generate -- owner
 ```
 
 La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
+
+La matrice complète Free / édition licenciée et le périmètre Gold différé sont documentés dans [`docs/MVP-FREE-LICENSED.md`](docs/MVP-FREE-LICENSED.md).
 
 > **Commercialisation :** le repository est actuellement public. Un utilisateur qui contrôle son instance peut donc modifier le code de vérification de licence. Pour une offre Premium réellement vendable, les droits commerciaux sensibles doivent être validés par un service d'entitlement/backend contrôlé par l'éditeur. La licence locale v1 est adaptée aux previews, tests et déploiements de confiance, pas à une protection anti-contournement forte.
 
@@ -123,6 +126,7 @@ La clé `BDP1…` est ensuite activée dans **Paramètres → Licence**.
 - [Métadonnées externes](docs/METADATA.md)
 - [Résolution d’identité et de couverture](docs/METADATA-RESOLUTION.md)
 - [Licence Premium](docs/PREMIUM-LICENSE.md)
+- [MVP Free et édition licenciée](docs/MVP-FREE-LICENSED.md)
 - [MCP 2026-07-28](docs/MCP.md)
 - [UI et quatre thèmes](docs/UI-THEMES.md)
 - [UI catalogue 2026](docs/UI-CATALOG.md)
