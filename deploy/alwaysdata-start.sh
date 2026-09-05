@@ -23,6 +23,11 @@ if [ -z "${BD_DESK_LICENSE_SECRET:-}" ] && [ -s "$LICENSE_SECRET_FILE" ]; then
   BD_DESK_LICENSE_SECRET="$(cat "$LICENSE_SECRET_FILE")"
   export BD_DESK_LICENSE_SECRET
 fi
+WEBHOOK_SECRET_FILE="${WEBHOOK_SIGNING_SECRET_FILE:-$HOME/data/bd-desk-webhook-secret}"
+if [ -z "${WEBHOOK_SIGNING_SECRET:-}" ] && [ -s "$WEBHOOK_SECRET_FILE" ]; then
+  WEBHOOK_SIGNING_SECRET="$(cat "$WEBHOOK_SECRET_FILE")"
+  export WEBHOOK_SIGNING_SECRET
+fi
 
 mkdir -p "$(dirname "$BD_DESK_DB")"
 exec node "$HOME/www/bd-desk/src/server.js"
