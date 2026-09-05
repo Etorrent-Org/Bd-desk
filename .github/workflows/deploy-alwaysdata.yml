@@ -100,6 +100,15 @@ jobs:
           test -n "$LICENSE_SECRET" || { echo '::error::BD_DESK_LICENSE_SECRET is unavailable to this workflow.'; exit 1; }
           printf '%s' "$LICENSE_SECRET" | base64 -w 0 | sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "base64 -d > /home/tatoune/data/bd-desk-license-secret && chmod 600 /home/tatoune/data/bd-desk-license-secret"
 
+      - name: Configure preview webhook secret
+        if: env.ALWAYSDATA_PASSWORD != '' && env.BD_DESK_EDITION != 'free'
+        env:
+          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET || vars.WEBHOOK_SIGNING_SECRET }}
+        run: |
+          test -n "$WEBHOOK_SECRET" || { echo '::error::WEBHOOK_SIGNING_SECRET is unavailable to this workflow.'; exit 1; }
+          printf '%s' "$WEBHOOK_SECRET" | base64 -w 0 | sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "base64 -d > /home/tatoune/data/bd-desk-webhook-secret && chmod 600 /home/tatoune/data/bd-desk-webhook-secret"
+
       - name: Materialize trusted cover assets
         run: |
           ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
