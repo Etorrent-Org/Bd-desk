@@ -61,7 +61,8 @@ test('le lecteur conserve le chemin FileReader pour les navigateurs sans File.te
 
 test('le déploiement refuse un serveur AlwaysData sans route d’aperçu',async()=>{
   const workflow=await read('.github/workflows/deploy-alwaysdata.yml');
-  assert.match(workflow,/ALWAYSDATA_API_KEY is unavailable/);
+  assert.match(workflow,/The AlwaysData API key is unavailable/);
+  assert.match(workflow,/secrets\.ALWAYS_DATA_API_KEY/);
   assert.match(workflow,/name: Validate deployment control secrets/);
   assert.match(workflow,/test -n "\$ALWAYSDATA_API_KEY"/);
   assert.match(workflow,/POST "\$PREVIEW_URL\/api\/import\/bdgest\/preview"/);

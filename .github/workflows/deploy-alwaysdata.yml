@@ -23,7 +23,7 @@ env:
   ALWAYSDATA_SITE_HOST: tatoune.alwaysdata.net
   PREVIEW_URL: https://tatoune.alwaysdata.net
   ALWAYSDATA_PASSWORD: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
-  ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY || vars.ALWAYSDATA_API_KEY }}
+  ALWAYSDATA_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY || vars.ALWAYSDATA_API_KEY || secrets.ALWAYS_DATA_API_KEY || vars.ALWAYS_DATA_API_KEY }}
   BD_DESK_EDITION: ${{ vars.BD_DESK_EDITION || 'licensed' }}
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
           LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET || vars.WEBHOOK_SIGNING_SECRET }}
         run: |
-          test -n "$ALWAYSDATA_API_KEY" || { echo '::error::ALWAYSDATA_API_KEY is unavailable. The workflow cannot prove that the AlwaysData Node process was restarted.'; echo 'Configure the repository secret or variable ALWAYSDATA_API_KEY before deploying BD Desk.'; exit 1; }
+          test -n "$ALWAYSDATA_API_KEY" || { echo '::error::The AlwaysData API key is unavailable. The workflow cannot prove that the AlwaysData Node process was restarted.'; echo 'Configure ALWAYSDATA_API_KEY (or the existing compatibility name ALWAYS_DATA_API_KEY) as a repository secret or variable before deploying BD Desk.'; exit 1; }
           case "$BD_DESK_EDITION" in
             free) ;;
             licensed)
