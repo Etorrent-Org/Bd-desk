@@ -39,6 +39,22 @@ jobs:
           echo '::error::ALWAYSDATA_PASSWORD is unavailable to this workflow. Configure it as a repository/organization Actions secret or variable with access to this repository.'
           exit 1
 
+      - name: Validate deployment control secrets
+        if: env.ALWAYSDATA_PASSWORD != ''
+        env:
+          LICENSE_SECRET: ${{ secrets.BD_DESK_LICENSE_SECRET || vars.BD_DESK_LICENSE_SECRET }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET || vars.WEBHOOK_SIGNING_SECRET }}
+        run: |
+          test -n "$ALWAYSDATA_API_KEY" || { echo '::error::ALWAYSDATA_API_KEY is unavailable. The workflow cannot prove that the AlwaysData Node process was restarted.'; echo 'Configure the repository secret or variable ALWAYSDATA_API_KEY before deploying BD Desk.'; exit 1; }
+          case "$BD_DESK_EDITION" in
+            free) ;;
+            licensed)
+              test -n "$LICENSE_SECRET" || { echo '::error::BD_DESK_LICENSE_SECRET is unavailable to this workflow.'; exit 1; }
+              test -n "$WEBHOOK_SECRET" || { echo '::error::WEBHOOK_SIGNING_SECRET is unavailable to this workflow.'; exit 1; }
+              ;;
+            *) echo '::error::BD_DESK_EDITION must be free or licensed.'; exit 1 ;;
+          esac
+
       - name: Install SSH deployment tools
         if: env.ALWAYSDATA_PASSWORD != ''
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass rsync
@@ -139,43 +155,6 @@ jobs:
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET/public/covers'"
           SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e rsync -az --delete "$COVER_DIR/" "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/public/covers/"
 
-      - name: alwaysdata API restart not configured
-        if: env.ALWAYSDATA_API_KEY == ''
-        run: |
-          echo '::warning::ALWAYSDATA_API_KEY is unavailable. Falling back to a targeted SSH process restart.'
-
-      - name: Restart alwaysdata HTTP site through process supervisor
-        if: env.ALWAYSDATA_API_KEY == '' && env.ALWAYSDATA_PASSWORD != ''
-        env:
-          SSHPASS: ${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}
-        run: |
-          sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "sh -s -- '$ALWAYSDATA_USER' '$ALWAYSDATA_TARGET' '3096'" <<'REMOTE'
-          set -eu
-          ACCOUNT_USER="$1"
-          TARGET="$2"
-          PORT="$3"
-          PIDS="$({
-            ps -eo user=,pid=,args= | awk -v user="$ACCOUNT_USER" -v target="$TARGET" '$1 == user && $0 ~ /[n]ode/ && (index($0,target) || $0 ~ /src\/server[.]js/) { print $2 }'
-            if command -v pgrep >/dev/null 2>&1; then
-              pgrep -u "$ACCOUNT_USER" -f 'server[.]js' || true
-              pgrep -u "$ACCOUNT_USER" -f 'alwaysdata-start[.]sh' || true
-            fi
-            if command -v lsof >/dev/null 2>&1; then
-              lsof -t -n -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
-            fi
-            if command -v ss >/dev/null 2>&1; then
-              ss -ltnp 2>/dev/null | awk -v port="$PORT" '$4 ~ ":" port "$" { match($0,/pid=[0-9]+/); if (RSTART) print substr($0,RSTART+4,RLENGTH-4) }'
-            fi
-          } | sort -nu)"
-          if [ -n "$PIDS" ]; then
-            echo "Stopping BD Desk Node process(es): $PIDS"
-            kill -TERM $PIDS 2>/dev/null || true
-            sleep 3
-          else
-            echo 'No BD Desk Node process found by path, server command, or port; continuing with the AlwaysData supervisor.'
-          fi
-          REMOTE
-
       - name: Discover and restart alwaysdata HTTP site
         if: env.ALWAYSDATA_API_KEY != ''
         run: |
@@ -224,6 +203,18 @@ jobs:
             --data "$LICENSE_PAYLOAD")"
           node -e "const x=JSON.parse(process.argv[1]); if(x.plan!=='premium') throw new Error('Preview license was not activated');" "$LICENSE_RESPONSE"
           echo 'Preview Premium license activated without exposing the key.'
+
+      - name: Verify live BDGest preview route
+        run: |
+          HTTP_CODE="$(curl -sS --retry 15 --retry-delay 2 --retry-all-errors \
+            --request POST "$PREVIEW_URL/api/import/bdgest/preview" \
+            --header 'content-type: text/csv' \
+            --data-binary @tests/fixtures/bdgest-sample.csv \
+            -o /tmp/bd-desk-bdgest-preview.json \
+            -w '%{http_code}')"
+          cat /tmp/bd-desk-bdgest-preview.json
+          node -e "const status=process.argv[1], x=JSON.parse(process.argv[2]); if(status!=='200'||x.valid!==true||x.rows!==4) throw new Error('Live BDGest preview route is not the deployed server route');" "$HTTP_CODE" "$(cat /tmp/bd-desk-bdgest-preview.json)"
+          echo 'Live BDGest preview route verified without writing the preview database.'
 
       - name: Verify live trusted cover asset
         run: |

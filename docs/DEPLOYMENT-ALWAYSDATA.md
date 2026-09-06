@@ -36,8 +36,9 @@ Dans `Etorrent-Org/Bd-desk` :
 2. **New repository secret**.
 3. Nom : `ALWAYSDATA_PASSWORD`.
 4. Valeur : le mot de passe de l'utilisateur SSH `tatoune`.
+5. Refaire l'opération avec le nom `ALWAYSDATA_API_KEY` et la valeur d'une clé API AlwaysData autorisée à redémarrer le site.
 
-La clé `ALWAYSDATA_API_KEY` est facultative. Si elle est configurée, le workflow redémarre le site via l'API AlwaysData. Sinon, il utilise une relance SSH ciblée du processus Node BD Desk.
+La clé `ALWAYSDATA_API_KEY` doit être créée dans le compte AlwaysData puis enregistrée uniquement dans GitHub Actions ; elle ne doit jamais être mise dans le repository, le fichier `.env` ou le code. Le workflow l'utilise pour redémarrer le site via l'API AlwaysData et refuse la livraison si cette clé n'est pas disponible, car une synchronisation SSH seule ne prouve pas que le processus Node exécute la nouvelle version. Ce secret est distinct du token GitHub et du mot de passe SSH.
 
 La variable Actions `BD_DESK_EDITION` choisit l'édition de la preview : `licensed` par défaut, ou `free` pour vérifier le parcours sans licence. En mode `licensed`, le secret Actions `BD_DESK_LICENSE_SECRET` est nécessaire pour l'activation automatique ; en mode `free`, ce secret n'est pas requis.
 
@@ -82,7 +83,7 @@ Le workflow :
 4. écrit seulement le mode `free|licensed` dans un fichier privé AlwaysData ;
 5. effectue un contrôle sur `https://tatoune.alwaysdata.net/api/health`.
 
-Le workflow redémarre le processus Node après la synchronisation et résout les couvertures des albums de preview déjà présents. La clé API AlwaysData n'est donc pas obligatoire pour les déploiements de preview.
+Le workflow redémarre le processus Node après la synchronisation, vérifie `POST /api/import/bdgest/preview` avec la fixture synthétique sans écrire dans la base, puis résout les couvertures des albums de preview déjà présents. Une réponse `Route API inconnue`, un ancien processus ou une route non Premium font échouer la livraison.
 
 ## Déploiements suivants
 

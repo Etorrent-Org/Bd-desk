@@ -1,31 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {File} from 'node:buffer';
 import {readFile} from 'node:fs/promises';
+import {isBdgestCsv,readBdgestFile} from '../public/import-bdgest.js';
 
 const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('le flux BDGest propose une source fichier et une source texte avant import',async()=>{
+test('le flux BDGest utilise le champ natif avant l’analyse serveur',async()=>{
   const js=await read('public/app.js');
   const css=await read('public/styles.css');
+  const reader=await read('public/import-bdgest.js');
   assert.match(js,/form id="bdgestImportForm" novalidate/);
-  assert.match(js,/input id="csvFile" name="file" type="file"/);
-  assert.match(js,/textarea id="csvText"/);
-  assert.match(js,/input\.addEventListener\('change',\(\)=>/);
-  assert.match(js,/textarea\.addEventListener\('input',\(\)=>/);
-  assert.match(js,/FileReader/);
-  assert.match(js,/inspectLocalCsv/);
-  assert.match(js,/Route API inconnue/);
+  assert.match(js,/input id="csvFile" name="file" type="file" accept="\.csv,text\/csv,application\/vnd\.ms-excel"/);
+  assert.match(js,/output id="csvFileName"/);
+  assert.match(js,/input\.addEventListener\('change',\(\)=>void loadFile\(selectedFile\(\)\)\)/);
+  assert.match(js,/import \{isBdgestCsv,readBdgestFile\}/);
+  assert.match(js,/fileName\.textContent=file\.name/);
+  assert.match(js,/readBdgestFile\(file\)/);
   assert.match(js,/addEventListener\('drop'/);
   assert.match(js,/api\/import\/bdgest\/preview/);
   assert.match(js,/id="analyzeImport"/);
   assert.match(js,/form\.addEventListener\('submit',async e=>/);
-  assert.match(js,/isCsv=file=>/);
+  assert.match(reader,/isBdgestCsv=file=>/);
+  assert.match(reader,/readBdgestFile=file=>/);
+  assert.match(reader,/FileReader/);
+  assert.doesNotMatch(js,/inspectLocalCsv/);
+  assert.doesNotMatch(js,/parseLocalCsv/);
+  assert.doesNotMatch(js,/csvText/);
+  assert.doesNotMatch(js,/Aperçu local/);
+  assert.doesNotMatch(js,/Route API inconnue/);
   assert.doesNotMatch(js,/input\.click\(\)/);
   assert.doesNotMatch(js,/showOpenFilePicker/);
   assert.match(css,/\.file-picker\{display:grid/);
-  assert.match(css,/\.file-picker input\[type=file\]\{display:block;position:static;width:100%/);
-  assert.match(css,/opacity:1;z-index:auto;cursor:pointer/);
-  assert.match(css,/::file-selector-button/);
+  assert.match(css,/\.file-picker input\[type=file\]\{display:block!important;position:static!important;width:100%/);
+  assert.match(css,/opacity:1!important;z-index:auto;cursor:pointer;pointer-events:auto/);
+  assert.match(css,/appearance:auto;-webkit-appearance:auto/);
   assert.match(css,/\.import-preview/);
-  assert.match(css,/\.import-or/);
+});
+
+test('le lecteur BDGest lit un vrai objet File avant l’appel serveur',async()=>{
+  const csv='Table;IdAlbum;Titre\\nALBUM;990001;Test';
+  const file=new File([csv],'collection.csv',{type:'text/csv'});
+  assert.equal(isBdgestCsv(file),true);
+  assert.equal(await readBdgestFile(file),csv);
+  assert.equal(isBdgestCsv(new File(['x'],'collection.txt',{type:'text/plain'})),false);
+});
+
+test('le lecteur conserve le chemin FileReader pour les navigateurs sans File.text',async()=>{
+  const previous=global.FileReader;
+  global.FileReader=class {
+    readAsText(){this.result='Table;IdAlbum;Titre\\nALBUM;990002;FileReader';this.onload?.();}
+  };
+  try{
+    assert.equal(await readBdgestFile({name:'collection.csv',type:'text/csv'}),'Table;IdAlbum;Titre\\nALBUM;990002;FileReader');
+  }finally{
+    if(previous===undefined)delete global.FileReader;
+    else global.FileReader=previous;
+  }
+});
+
+test('le déploiement refuse un serveur AlwaysData sans route d’aperçu',async()=>{
+  const workflow=await read('.github/workflows/deploy-alwaysdata.yml');
+  assert.match(workflow,/ALWAYSDATA_API_KEY is unavailable/);
+  assert.match(workflow,/name: Validate deployment control secrets/);
+  assert.match(workflow,/test -n "\$ALWAYSDATA_API_KEY"/);
+  assert.match(workflow,/POST "\$PREVIEW_URL\/api\/import\/bdgest\/preview"/);
+  assert.match(workflow,/bdgest-sample\.csv/);
+  assert.match(workflow,/Live BDGest preview route is not the deployed server route/);
+  assert.doesNotMatch(workflow,/Require AlwaysData restart control/);
+  assert.doesNotMatch(workflow,/No BD Desk Node process found/);
 });
