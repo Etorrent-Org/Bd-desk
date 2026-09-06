@@ -6,6 +6,17 @@ Fichier CSV `;` exporté depuis la collection en ligne BDGest, contenant la tabl
 
 Il s'agit bien d'un **import BDGest vers BD Desk**, et non d'une fonction d'export BDGest. Le bouton est disponible uniquement avec le feature `bulk_import` de l'édition licenciée ; le serveur renvoie `402` même si un client tente d'appeler directement la route.
 
+## Parcours utilisateur
+
+La fenêtre d'import utilise deux sources équivalentes :
+
+1. le champ natif visible **Fichier CSV BDGest**, qui lit le fichier local avec `FileReader` ;
+2. la zone **Coller le contenu CSV**, prévue pour les appareils où le sélecteur système ne s'ouvre pas.
+
+Le glisser-déposer est également accepté sur la zone fichier. Dans tous les cas, le bouton **Analyser** doit être utilisé avant **Importer**. L'analyse appelle `POST /api/import/bdgest/preview`, ne modifie pas la base et retourne uniquement des compteurs de contrôle. L'import réel appelle ensuite `POST /api/import/bdgest` avec le contenu explicitement validé.
+
+Le parcours bloque les extensions non CSV, les fichiers de plus de 5 Mo, les CSV vides, les colonnes BDGest indispensables manquantes et les lignes `ALBUM` dont l'`IdAlbum` n'est pas numérique. Les erreurs restent affichées dans la fenêtre afin d'éviter un import aveugle.
+
 Le parseur :
 
 - gère les champs CSV entre guillemets et les points-virgules internes ;
@@ -15,6 +26,8 @@ Le parseur :
 - convertit les dates `JJ/MM/AAAA` en `AAAA-MM-JJ` ;
 - met à jour un album existant si le même `IdAlbum` BDGest est réimporté.
 - ne génère pas de couverture à partir d'une URL Open Library construite mécaniquement.
+
+L'aperçu expose notamment le nombre d'albums reconnus, les lignes ignorées, les ISBN renseignés, les groupes d'ISBN partagés et les erreurs de structure. Les titres, commentaires, prix et autres valeurs personnelles ne sont pas renvoyés par cet aperçu.
 
 ## Sécurité des données
 

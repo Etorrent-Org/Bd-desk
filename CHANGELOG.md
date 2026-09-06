@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+- **Import BDGest réécrit de bout en bout** : lecture locale par `FileReader`, glisser-déposer et collage CSV de secours ; aperçu non destructif avant import, validation du contrat BDGest côté serveur et blocage des formats invalides. Le flux reste réservé à l'édition licenciée.
 - **MVP Free / édition licenciée** : séparation explicite par `BD_DESK_EDITION`, Free par défaut en local, contrôle serveur des features, endpoint `/api/capabilities`, activation de licence cohérente et Gold laissé hors périmètre.
 - **Robustesse métier** : validation stricte des albums, prêts, clés API et webhooks ; pagination de collection conservée ; mise à jour d'un album inexistant sans écriture d'historique ; effacement d'une couverture manuelle réouvrant la résolution machine.
 - **Déploiement** : workflow AlwaysData capable de sélectionner Free ou licencié via variable Actions, stockage privé du mode et secret de licence conditionnel ; version de cache unifiée `bd-desk-v33` / `2026.09.04.1`.
-- **QA locale** : 86 tests verts, 99,64 % lignes, 95,11 % fonctions et 78,25 % branches.
+- **QA locale** : 90 tests verts, 99,66 % lignes, 95,41 % fonctions et 78,01 % branches ; aperçu d'import testé sans écriture.
 
 - **Validation complète de l’import BDGest** : la procédure de contrôle du fichier réel et de réimport idempotent est exécutée hors dépôt ; les ISBN dupliqués restent autorisés et le fichier privé n’est pas publié.
 - **Robustesse du pipeline couverture** : le proxy same-origin reconnaît les images valides même lorsqu’un fournisseur annonce `application/octet-stream`, tout en rejetant les contenus non image ; une mise à jour d’album inexistant renvoie désormais 404.

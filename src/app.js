@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, seedIfEmpty, listAlbums, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
 import { canonicalIsbn } from './isbn.js';
+import { inspectBdgestCsv } from './csv.js';
 import { verifyLicense, hasFeature } from './license.js';
 import { fetchMetadata, resolveCandidates } from './metadata.js';
 import { handleMcp, validateMcpHttp, MCP_PROTOCOL_VERSION } from './mcp.js';
@@ -143,7 +144,25 @@ export function createBdDeskApp(config, opts={}){
       if(m&&req.method==='DELETE'){ const ok=deleteAlbum(db,m[1]); return json(res,ok?200:404,{ok}); }
       m=p.match(/^\/api\/metadata\/(\d+)\/enrich$/);
       if(m&&req.method==='POST'){ if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'}); const a=getAlbum(db,m[1]); if(!a||!a.isbn)return json(res,400,{error:'ISBN requis'}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const applied=applyMetadataResolution(db,a.id,resolution); await emit('album.enriched',{album:applied.album,provenance:applied.provenance,cover:applied.cover}); return json(res,200,{album:applied.album,candidates,resolution,provenance:applied.provenance,changed:applied.updatedFields.length>0||applied.cover.updated}); }
-      if(p==='/api/import/bdgest'&&req.method==='POST'){ if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'}); const csv=await body(req); if(!csv.trim())return json(res,400,{error:'Fichier CSV BDGest vide'}); const result=importBdgest(db,csv); if(!result.rows)return json(res,400,{error:'Format BDGest introuvable : aucune ligne ALBUM'}); await emit('collection.imported',result); return json(res,200,result); }
+      if(p==='/api/import/bdgest/preview'&&req.method==='POST'){
+        if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'});
+        const csv=await body(req);
+        if(!csv.trim())return json(res,400,{error:'Fichier CSV BDGest vide'});
+        const preview=inspectBdgestCsv(csv);
+        if(!preview.valid)return json(res,400,{error:preview.errors[0]||'Format BDGest invalide',preview});
+        return json(res,200,preview);
+      }
+      if(p==='/api/import/bdgest'&&req.method==='POST'){
+        if(!premium('bulk_import'))return json(res,402,{error:'Premium requis',feature:'bulk_import'});
+        const csv=await body(req);
+        if(!csv.trim())return json(res,400,{error:'Fichier CSV BDGest vide'});
+        const preview=inspectBdgestCsv(csv);
+        if(!preview.valid)return json(res,400,{error:preview.errors[0]||'Format BDGest invalide',preview});
+        const result=importBdgest(db,csv);
+        if(!result.rows)return json(res,400,{error:'Format BDGest introuvable : aucune ligne ALBUM'});
+        await emit('collection.imported',result);
+        return json(res,200,result);
+      }
       if(p==='/api/keys'&&req.method==='GET'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT id,name,prefix,created_at,last_used_at,revoked_at FROM api_keys ORDER BY id DESC').all()); }
       if(p==='/api/keys'&&req.method==='POST'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const {name}=normalizeApiKeyPayload(await jsonBody(req)), key=randomKey(); const r=db.prepare('INSERT INTO api_keys(name,key_hash,prefix) VALUES(?,?,?)').run(name,hash(key),key.slice(0,12)); return json(res,201,{id:Number(r.lastInsertRowid),key,name,warning:'Cette clé ne sera plus affichée.'}); }
       m=p.match(/^\/api\/keys\/(\d+)$/);
