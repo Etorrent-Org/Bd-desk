@@ -36,9 +36,9 @@ Dans `Etorrent-Org/Bd-desk` :
 2. **New repository secret**.
 3. Nom : `ALWAYSDATA_PASSWORD`.
 4. Valeur : le mot de passe de l'utilisateur SSH `tatoune`.
-5. Refaire l'opération avec le nom `ALWAYSDATA_API_KEY` et la valeur d'une clé API AlwaysData autorisée à redémarrer le site.
+5. Refaire l'opération avec le nom `ALWAYSDATA_API_KEY` et la valeur d'une clé API AlwaysData autorisée à redémarrer le site. Le nom déjà créé `ALWAYS_DATA_API_KEY` est également accepté par le workflow.
 
-La clé `ALWAYSDATA_API_KEY` doit être créée dans le compte AlwaysData puis enregistrée uniquement dans GitHub Actions ; elle ne doit jamais être mise dans le repository, le fichier `.env` ou le code. Le workflow l'utilise pour redémarrer le site via l'API AlwaysData et refuse la livraison si cette clé n'est pas disponible, car une synchronisation SSH seule ne prouve pas que le processus Node exécute la nouvelle version. Ce secret est distinct du token GitHub et du mot de passe SSH.
+La clé API AlwaysData doit être créée dans le compte AlwaysData puis enregistrée uniquement dans GitHub Actions ; elle ne doit jamais être mise dans le repository, le fichier `.env` ou le code. Le workflow accepte `ALWAYSDATA_API_KEY` et le nom existant `ALWAYS_DATA_API_KEY`, puis utilise la clé pour redémarrer le site via l'API AlwaysData. Il refuse la livraison si cette clé n'est pas disponible, car une synchronisation SSH seule ne prouve pas que le processus Node exécute la nouvelle version. Ce secret est distinct du token GitHub et du mot de passe SSH.
 
 La variable Actions `BD_DESK_EDITION` choisit l'édition de la preview : `licensed` par défaut, ou `free` pour vérifier le parcours sans licence. En mode `licensed`, le secret Actions `BD_DESK_LICENSE_SECRET` est nécessaire pour l'activation automatique ; en mode `free`, ce secret n'est pas requis.
 
