@@ -15,7 +15,7 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 
 | Gate | Validation | Preuve |
 |---|---|---|
-| Sélection fichier native | ⏳ À valider après CI et déploiement : champ natif visible, événement `change`, lecture locale `File.text()`/`FileReader` et glisser-déposer. | Tests `tests/import-ui.test.js` + contrôle live |
+| Sélection fichier native | ⏳ À valider après CI et déploiement : bouton visible relié par `label[for]` au champ natif, événement `change`, lecture locale `File.text()`/`FileReader` et glisser-déposer. | Tests `tests/import-ui.test.js` + contrôle live |
 | Analyse avant écriture | ⏳ À valider après CI et déploiement : aperçu `POST /api/import/bdgest/preview`, sans mutation de la base. | Tests `tests/csv.test.js` et `tests/app.test.js` |
 | Route d’aperçu serveur obligatoire | ⏳ À valider après déploiement : une route absente bloque l’import et fait échouer le contrôle de livraison. | Test live sur la preview |
 | Import réel et idempotence | ⏳ À valider après CI et déploiement. | `scripts/validate-bdgest.js` sur le fichier privé |

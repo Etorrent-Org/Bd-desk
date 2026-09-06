@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Sélecteur BDGest repris** : remplacement du rendu CSS direct du champ `type=file` par un bouton visible relié par `label[for]` au champ natif, avec conservation de l'accessibilité clavier, du changement de fichier et du glisser-déposer.
+
 - **Import BDGest réécrit de bout en bout** : champ de fichier natif visible, lecture locale par `File.text()`/`FileReader`, glisser-déposer et aperçu non destructif côté serveur avant import. Aucun import n'est autorisé si la route d'aperçu serveur n'est pas disponible. Le flux reste réservé à l'édition licenciée.
 - **MVP Free / édition licenciée** : séparation explicite par `BD_DESK_EDITION`, Free par défaut en local, contrôle serveur des features, endpoint `/api/capabilities`, activation de licence cohérente et Gold laissé hors périmètre.
 - **Robustesse métier** : validation stricte des albums, prêts, clés API et webhooks ; pagination de collection conservée ; mise à jour d'un album inexistant sans écriture d'historique ; effacement d'une couverture manuelle réouvrant la résolution machine.
