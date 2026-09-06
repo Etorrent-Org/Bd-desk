@@ -159,7 +159,48 @@ jobs:
         if: env.ALWAYSDATA_API_KEY != ''
         run: |
           SITES="$(curl -fsS --basic --user "${ALWAYSDATA_API_KEY} account=${ALWAYSDATA_USER}:" https://api.alwaysdata.com/v1/site/)"
-          SITE_ID="$(printf '%s' "$SITES" | python3 -c 'import json,sys; x=json.load(sys.stdin); pools=[x] if isinstance(x,list) else [x.get(k) for k in ("results","data","objects") if isinstance(x.get(k),list)]; items=pools[0] if pools else []; host=sys.argv[1]; hits=[s for s in items if host in (s.get("addresses") or [])]; print(hits[0]["id"] if len(hits)==1 else "")' "$ALWAYSDATA_SITE_HOST")"
+          SITE_ID="$(SITES_JSON="$SITES" python3 - "$ALWAYSDATA_SITE_HOST" <<'PY'
+          import json, os, re, sys
+
+          payload=json.loads(os.environ['SITES_JSON'])
+          requested=sys.argv[1].strip().lower().rstrip('.')
+
+          def site_items(value):
+              if isinstance(value,list):
+                  return value
+              if isinstance(value,dict):
+                  for key in ('results','data','objects','items'):
+                      nested=value.get(key)
+                      if isinstance(nested,list):
+                          return nested
+                      if isinstance(nested,dict):
+                          found=site_items(nested)
+                          if found:
+                              return found
+              return []
+
+          def hostname(value):
+              if isinstance(value,dict):
+                  for key in ('address','host','hostname','name','url'):
+                      if value.get(key):
+                          return hostname(value[key])
+                  return ''
+              if not isinstance(value,str):
+                  return ''
+              value=re.sub(r'^https?://','',value.strip().lower()).split('/',1)[0]
+              if value.count(':')==1:
+                  value=value.rsplit(':',1)[0]
+              return value.rstrip('.')
+
+          items=site_items(payload)
+          hits=[site for site in items if isinstance(site,dict) and any(hostname(address)==requested for address in (site.get('addresses') or []))]
+          if len(hits)!=1:
+              available=[{'id':site.get('id'),'addresses':site.get('addresses',[])} for site in items if isinstance(site,dict)]
+              print(json.dumps({'requested':requested,'available':available},ensure_ascii=False),file=sys.stderr)
+              raise SystemExit(1)
+          print(hits[0]['id'])
+          PY
+          )"
           if [ -z "$SITE_ID" ]; then
             echo "::error::Unable to resolve alwaysdata site id for $ALWAYSDATA_SITE_HOST"
             exit 1

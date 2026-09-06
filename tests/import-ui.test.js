@@ -68,6 +68,8 @@ test('le déploiement refuse un serveur AlwaysData sans route d’aperçu',async
   assert.match(workflow,/POST "\$PREVIEW_URL\/api\/import\/bdgest\/preview"/);
   assert.match(workflow,/bdgest-sample\.csv/);
   assert.match(workflow,/Live BDGest preview route is not the deployed server route/);
+  assert.match(workflow,/def hostname\(value\)/);
+  assert.match(workflow,/site_items\(payload\)/);
   assert.doesNotMatch(workflow,/Require AlwaysData restart control/);
   assert.doesNotMatch(workflow,/No BD Desk Node process found/);
 });
