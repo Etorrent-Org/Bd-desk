@@ -13,6 +13,8 @@ test('le flux BDGest propose une source fichier et une source texte avant import
   assert.match(js,/input\.addEventListener\('change',\(\)=>/);
   assert.match(js,/textarea\.addEventListener\('input',\(\)=>/);
   assert.match(js,/FileReader/);
+  assert.match(js,/inspectLocalCsv/);
+  assert.match(js,/Route API inconnue/);
   assert.match(js,/addEventListener\('drop'/);
   assert.match(js,/api\/import\/bdgest\/preview/);
   assert.match(js,/id="analyzeImport"/);
