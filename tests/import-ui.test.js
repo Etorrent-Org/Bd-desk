@@ -11,7 +11,9 @@ test('le flux BDGest utilise le champ natif avant l’analyse serveur',async()=>
   const css=await read('public/styles.css');
   const reader=await read('public/import-bdgest.js');
   assert.match(js,/form id="bdgestImportForm" novalidate/);
-  assert.match(js,/input id="csvFile" name="file" type="file" accept="\.csv,text\/csv,application\/vnd\.ms-excel"/);
+  assert.match(js,/label class="file-choose-button" for="csvFile">Choisir un fichier<\/label>/);
+  assert.match(js,/input id="csvFile" class="file-input-native" name="file" type="file" accept="\.csv,text\/csv,application\/vnd\.ms-excel"/);
+  assert.match(js,/aria-labelledby="csvFileLabel"/);
   assert.match(js,/output id="csvFileName"/);
   assert.match(js,/input\.addEventListener\('change',\(\)=>void loadFile\(selectedFile\(\)\)\)/);
   assert.match(js,/import \{isBdgestCsv,readBdgestFile\}/);
@@ -32,9 +34,10 @@ test('le flux BDGest utilise le champ natif avant l’analyse serveur',async()=>
   assert.doesNotMatch(js,/input\.click\(\)/);
   assert.doesNotMatch(js,/showOpenFilePicker/);
   assert.match(css,/\.file-picker\{display:grid/);
-  assert.match(css,/\.file-picker input\[type=file\]\{display:block!important;position:static!important;width:100%/);
-  assert.match(css,/opacity:1!important;z-index:auto;cursor:pointer;pointer-events:auto/);
-  assert.match(css,/appearance:auto;-webkit-appearance:auto/);
+  assert.match(css,/\.file-picker-control\{display:flex/);
+  assert.match(css,/\.file-choose-button\{display:inline-flex/);
+  assert.match(css,/\.file-input-native\{position:absolute!important;width:1px!important;height:1px!important/);
+  assert.match(css,/clip-path:inset\(50%\)!important/);
   assert.match(css,/\.import-preview/);
 });
 

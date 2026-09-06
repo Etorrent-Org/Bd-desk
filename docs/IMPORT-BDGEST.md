@@ -8,7 +8,7 @@ Il s'agit bien d'un **import BDGest vers BD Desk**, et non d'une fonction d'expo
 
 ## Parcours utilisateur
 
-La fenêtre d'import utilise un seul champ **natif visible** **Fichier CSV BDGest**. Le navigateur ouvre directement son sélecteur système ; après l'événement `change`, le fichier est lu localement avec `File.text()` ou `FileReader`. Le glisser-déposer est accepté sur la même zone comme comportement natif complémentaire.
+La fenêtre d'import utilise un seul contrôle **Choisir un fichier** visible, relié directement par un label HTML au champ fichier natif. Le navigateur ouvre son sélecteur système ; après l'événement `change`, le fichier est lu localement avec `File.text()` ou `FileReader`. Le glisser-déposer est accepté sur la même zone comme comportement complémentaire.
 
 Dans tous les cas, le bouton **Analyser** doit être utilisé avant **Importer**. L'analyse appelle `POST /api/import/bdgest/preview`, ne modifie pas la base et retourne uniquement des compteurs de contrôle. Si cette route n'est pas disponible, l'import reste bloqué : le déploiement est incomplet et doit être corrigé avant de transmettre ou d'écrire le fichier. L'import réel appelle ensuite `POST /api/import/bdgest` avec le contenu explicitement validé.
 
