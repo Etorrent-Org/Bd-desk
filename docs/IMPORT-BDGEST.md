@@ -8,12 +8,9 @@ Il s'agit bien d'un **import BDGest vers BD Desk**, et non d'une fonction d'expo
 
 ## Parcours utilisateur
 
-La fenêtre d'import utilise deux sources équivalentes :
+La fenêtre d'import utilise un seul champ **natif visible** **Fichier CSV BDGest**. Le navigateur ouvre directement son sélecteur système ; après l'événement `change`, le fichier est lu localement avec `File.text()` ou `FileReader`. Le glisser-déposer est accepté sur la même zone comme comportement natif complémentaire.
 
-1. le champ natif visible **Fichier CSV BDGest**, qui lit le fichier local avec `FileReader` ;
-2. la zone **Coller le contenu CSV**, prévue pour les appareils où le sélecteur système ne s'ouvre pas.
-
-Le glisser-déposer est également accepté sur la zone fichier. Dans tous les cas, le bouton **Analyser** doit être utilisé avant **Importer**. L'analyse appelle `POST /api/import/bdgest/preview`, ne modifie pas la base et retourne uniquement des compteurs de contrôle. Si un ancien processus BD Desk répond encore `Route API inconnue` après une synchronisation statique, le même contrôle est exécuté localement dans le navigateur ; cela permet de continuer le parcours sans transmettre le fichier avant la validation. L'import réel appelle ensuite `POST /api/import/bdgest` avec le contenu explicitement validé.
+Dans tous les cas, le bouton **Analyser** doit être utilisé avant **Importer**. L'analyse appelle `POST /api/import/bdgest/preview`, ne modifie pas la base et retourne uniquement des compteurs de contrôle. Si cette route n'est pas disponible, l'import reste bloqué : le déploiement est incomplet et doit être corrigé avant de transmettre ou d'écrire le fichier. L'import réel appelle ensuite `POST /api/import/bdgest` avec le contenu explicitement validé.
 
 Le parcours bloque les extensions non CSV, les fichiers de plus de 5 Mo, les CSV vides, les colonnes BDGest indispensables manquantes et les lignes `ALBUM` dont l'`IdAlbum` n'est pas numérique. Les erreurs restent affichées dans la fenêtre afin d'éviter un import aveugle.
 

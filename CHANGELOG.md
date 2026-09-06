@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Import BDGest réécrit de bout en bout** : lecture locale par `FileReader`, glisser-déposer et collage CSV de secours ; aperçu non destructif avant import, validation du contrat BDGest côté serveur et contrôle local de secours si le processus serveur n'a pas encore redémarré. Le flux reste réservé à l'édition licenciée.
+- **Import BDGest réécrit de bout en bout** : champ de fichier natif visible, lecture locale par `File.text()`/`FileReader`, glisser-déposer et aperçu non destructif côté serveur avant import. Aucun import n'est autorisé si la route d'aperçu serveur n'est pas disponible. Le flux reste réservé à l'édition licenciée.
 - **MVP Free / édition licenciée** : séparation explicite par `BD_DESK_EDITION`, Free par défaut en local, contrôle serveur des features, endpoint `/api/capabilities`, activation de licence cohérente et Gold laissé hors périmètre.
 - **Robustesse métier** : validation stricte des albums, prêts, clés API et webhooks ; pagination de collection conservée ; mise à jour d'un album inexistant sans écriture d'historique ; effacement d'une couverture manuelle réouvrant la résolution machine.
 - **Déploiement** : workflow AlwaysData capable de sélectionner Free ou licencié via variable Actions, stockage privé du mode et secret de licence conditionnel ; version de cache unifiée `bd-desk-v33` / `2026.09.04.1`.

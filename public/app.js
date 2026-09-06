@@ -1,3 +1,4 @@
+import {isBdgestCsv,readBdgestFile} from './import-bdgest.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const state={route:'home',theme:localStorage.getItem('bd-theme')||'neutral',edition:'free',license:{plan:'free',features:[]},search:'',albums:[],collection:{page:0,read:''}};
 const routes=[['home','⌂','Accueil'],['collection','▥','Ma collection'],['series','▦','Séries'],['albums','▤','Albums'],['authors','♙','Auteurs'],['publishers','♜','Éditeurs'],['wishlist','♡','Wishlist'],['loans','♧','Prêts'],['history','◷','Historique'],['stats','▥','Statistiques'],['discover','◎','Découvrir']];
@@ -93,86 +94,34 @@ function openPremiumGate(title='Fonction Premium',description='Cette fonction es
 }
 function openImport(){
   if(!premium('bulk_import')){openPremiumGate('Import BDGest · Premium','Importez votre collection BDGest avec idempotence, conservation des doublons ISBN et rapport de contrôle.');return;}
-  modal(`<h2>Importer une collection BDGest</h2><p>Import BDGest vers BD Desk. Le fichier est lu dans le navigateur, puis vérifié avant toute écriture. Un même IdAlbum est mis à jour lors d’un ré-import ; les ISBN dupliqués restent distincts.</p><form id="bdgestImportForm" novalidate><section class="import-section"><h3>1. Choisir un fichier</h3><div class="file-picker import-drop" id="csvPicker"><label for="csvFile">Fichier CSV BDGest</label><input id="csvFile" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="csvFileHelp importStatus"><small id="csvFileHelp" class="file-picker-help">Sélection native visible, glisser-déposer accepté. CSV BDGest, 5 Mo maximum.</small></div></section><div class="import-or" aria-hidden="true"><span>ou</span></div><section class="import-section"><h3>2. Coller le contenu CSV</h3><textarea id="csvText" rows="8" placeholder="Collez ici le contenu exporté depuis BDGest…" aria-describedby="csvTextHelp importStatus"></textarea><small id="csvTextHelp" class="file-picker-help">Solution de secours si le sélecteur de fichier ne s’ouvre pas sur votre appareil.</small></section><div class="import-preview" id="importPreview" aria-live="polite">Aucun contenu à analyser.</div><small id="importStatus" class="muted" aria-live="polite"></small><div class="modal-actions"><button type="button" class="btn" id="cancel">Annuler</button><button type="button" class="btn" id="analyzeImport" disabled>Analyser</button><button type="submit" class="btn primary" id="doImport" disabled>Importer</button></div></form>`);
+  modal(`<h2>Importer une collection BDGest</h2><p>Import BDGest vers BD Desk. Le fichier est lu dans le navigateur, puis vérifié avant toute écriture. Un même IdAlbum est mis à jour lors d’un ré-import ; les ISBN dupliqués restent distincts.</p><form id="bdgestImportForm" novalidate><section class="import-section"><h3>1. Choisir un fichier</h3><div class="file-picker import-drop" id="csvPicker"><label class="file-picker-label" for="csvFile">Fichier CSV BDGest</label><input id="csvFile" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="csvFileName csvFileHelp importStatus" required><output id="csvFileName" class="file-picker-name" aria-live="polite">Aucun fichier choisi</output><small id="csvFileHelp" class="file-picker-help">Sélection native visible, glisser-déposer accepté. CSV BDGest, 5 Mo maximum.</small></div></section><div class="import-preview" id="importPreview" aria-live="polite">Aucun contenu à analyser.</div><small id="importStatus" class="muted" aria-live="polite"></small><div class="modal-actions"><button type="button" class="btn" id="cancel">Annuler</button><button type="button" class="btn" id="analyzeImport" disabled>Analyser</button><button type="submit" class="btn primary" id="doImport" disabled>Importer</button></div></form>`);
   $('#cancel').onclick=()=>$('#modal').classList.add('hidden');
-  const form=$('#bdgestImportForm'), input=$('#csvFile'), textarea=$('#csvText'), picker=$('#csvPicker'), status=$('#importStatus'), preview=$('#importPreview'), analyzeButton=$('#analyzeImport'), importButton=$('#doImport');
-  const source={text:'',label:'',analysis:null,reading:false};
+  const form=$('#bdgestImportForm'), input=$('#csvFile'), fileName=$('#csvFileName'), picker=$('#csvPicker'), status=$('#importStatus'), preview=$('#importPreview'), analyzeButton=$('#analyzeImport'), importButton=$('#doImport');
+  const source={text:'',label:'',analysis:null,reading:false,readSequence:0};
   const setStatus=(message='')=>{status.textContent=message};
   const resetAnalysis=()=>{source.analysis=null;importButton.disabled=true;preview.innerHTML='Aucun contenu analysé.'};
-  const isCsv=file=>Boolean(file)&&(/\.csv$/i.test(file.name||'')||file.type==='text/csv'||file.type==='application/vnd.ms-excel');
-  const parseLocalCsv=text=>{
-    const rows=[];let row=[],field='',quoted=false;
-    for(let i=0;i<text.length;i++){
-      const c=text[i];
-      if(c==='"'){if(quoted&&text[i+1]==='"'){field+='"';i++;}else quoted=!quoted;}
-      else if(c===';'&&!quoted){row.push(field);field='';}
-      else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(field);field='';if(row.some(value=>String(value||'').trim()!=='')||row.length>1)rows.push(row);row=[];}
-      else field+=c;
-    }
-    if(field.length||row.length){row.push(field);if(row.some(value=>String(value||'').trim()!==''))rows.push(row);}
-    return rows;
-  };
-  const canonicalLocalIsbn=value=>{
-    const raw=String(value||'').replace(/[^0-9Xx]/g,'').toUpperCase();
-    if(/^\d{13}$/.test(raw)){
-      const sum=[...raw.slice(0,12)].reduce((total,d,index)=>total+Number(d)*(index%2?3:1),0);
-      return String((10-(sum%10))%10)===raw[12]?raw:null;
-    }
-    if(!/^\d{9}[0-9X]$/.test(raw))return null;
-    const valid10=[...raw].reduce((total,d,index)=>total+(d==='X'?10:Number(d))*(10-index),0)%11===0;
-    if(!valid10)return null;
-    const body='978'+raw.slice(0,9);let sum=0;
-    for(let i=0;i<body.length;i++)sum+=Number(body[i])*(i%2?3:1);
-    return body+String((10-(sum%10))%10);
-  };
-  const inspectLocalCsv=text=>{
-    const rows=parseLocalCsv(String(text||'').replace(/^\uFEFF/,''));
-    const headers=rows.length?rows[0].map(value=>String(value||'').trim()):[];
-    const records=rows.slice(1).map(values=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??''])));
-    const required=['Table','IdAlbum','Titre'],missingHeaders=required.filter(header=>!headers.includes(header)),errors=[];
-    const albums=records.filter(record=>String(record.Table||'').trim().toUpperCase()==='ALBUM');
-    const invalidRows=albums.filter(record=>!/^\d+$/.test(String(record.IdAlbum||'').trim())).length;
-    const validAlbums=albums.filter(record=>/^\d+$/.test(String(record.IdAlbum||'').trim()));
-    const duplicateGroups=values=>{const counts=new Map();for(const value of values)counts.set(value,(counts.get(value)||0)+1);return [...counts.values()].filter(count=>count>1).length};
-    const duplicateIds=duplicateGroups(validAlbums.map(record=>String(record.IdAlbum).trim()));
-    const isbns=validAlbums.map(record=>canonicalLocalIsbn(record.ISBN)).filter(Boolean);
-    if(!headers.length)errors.push('Le fichier CSV est vide.');
-    if(missingHeaders.length)errors.push(`Colonnes BDGest manquantes : ${missingHeaders.join(', ')}.`);
-    if(!albums.length&&!missingHeaders.length)errors.push('Aucune ligne ALBUM BDGest valide n’a été trouvée.');
-    if(invalidRows)errors.push(`${invalidRows} ligne(s) ALBUM ont un IdAlbum invalide.`);
-    if(duplicateIds)errors.push(`${duplicateIds} groupe(s) d’IdAlbum dupliqué(s) détecté(s).`);
-    return {valid:errors.length===0&&validAlbums.length>0,headers,missingHeaders,rows:validAlbums.length,sourceRows:validAlbums.length,ignoredRows:records.length-albums.length,invalidRows,duplicateIds,isbnPresent:isbns.length,duplicateIsbnGroups:duplicateGroups(isbns),errors};
-  };
-  const readFileText=file=>new Promise((resolve,reject)=>{
-    if(typeof FileReader==='undefined'){if(typeof file.text==='function')file.text().then(resolve,reject);else reject(new Error('Lecture locale indisponible'));return;}
-    const reader=new FileReader();
-    reader.onload=()=>resolve(String(reader.result||''));
-    reader.onerror=()=>reject(new Error('Lecture du fichier impossible'));
-    reader.readAsText(file,'UTF-8');
-  });
   const setSource=(text,label)=>{
     source.text=String(text||'');source.label=label||'Contenu CSV';resetAnalysis();
     analyzeButton.disabled=!source.text.trim();
   };
+  const selectedFile=()=>input.files?.item?.(0)||input.files?.[0]||null;
   const loadFile=async file=>{
-    if(!file)return;
-    if(!isCsv(file)){setSource('','');setStatus('Le fichier sélectionné doit être un CSV.');return;}
-    if(file.size>5_000_000){setSource('','');setStatus('Fichier trop volumineux (5 Mo maximum).');return;}
-    source.reading=true;input.disabled=true;setStatus(`Lecture locale de ${file.name}…`);
+    const sequence=++source.readSequence;
+    if(!file){fileName.textContent='Aucun fichier choisi';input.setCustomValidity('');setSource('','');setStatus('Choisissez un fichier CSV BDGest.');return;}
+    fileName.textContent=file.name;
+    if(!isBdgestCsv(file)){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');input.setCustomValidity('Le fichier sélectionné doit être un CSV.');setStatus('Le fichier sélectionné doit être un CSV.');return;}
+    if(file.size>5_000_000){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');input.setCustomValidity('Le fichier dépasse 5 Mo.');setStatus('Fichier trop volumineux (5 Mo maximum).');return;}
+    input.setCustomValidity('');source.reading=true;analyzeButton.disabled=true;importButton.disabled=true;setStatus(`Lecture locale de ${file.name}…`);
     try{
-      const text=await readFileText(file);
+      const text=await readBdgestFile(file);
+      if(sequence!==source.readSequence)return;
       if(!text.trim())throw new Error('Le fichier CSV est vide.');
-      textarea.value='';setSource(text,file.name);setStatus(`Fichier prêt : ${file.name}. Cliquez sur « Analyser ».`);
-    }catch(error){setSource('','');setStatus(error.message||'Lecture du fichier impossible.');}
-    finally{source.reading=false;input.disabled=false;}
+      setSource(text,file.name);setStatus(`Fichier prêt : ${file.name}. Cliquez sur « Analyser ».`);
+    }catch(error){
+      if(sequence===source.readSequence){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');setStatus(error.message||'Lecture du fichier impossible.');}
+    }finally{if(sequence===source.readSequence)source.reading=false;}
   };
-  input.addEventListener('change',()=>void loadFile(input.files?.[0]));
-  textarea.addEventListener('input',()=>{
-    input.value='';
-    const text=textarea.value;
-    if(text.trim()){setSource(text,'Contenu collé');setStatus('Contenu prêt. Cliquez sur « Analyser ».');}
-    else{setSource('','');setStatus('');}
-  });
+  input.addEventListener('change',()=>void loadFile(selectedFile()));
   ['dragenter','dragover'].forEach(eventName=>picker.addEventListener(eventName,e=>{e.preventDefault();picker.classList.add('drag-over')}));
   ['dragleave','drop'].forEach(eventName=>picker.addEventListener(eventName,e=>{e.preventDefault();picker.classList.remove('drag-over')}));
   picker.addEventListener('drop',e=>void loadFile(e.dataTransfer?.files?.[0]));
@@ -180,24 +129,19 @@ function openImport(){
     const errors=Array.isArray(data?.errors)?data.errors:[];
     const message=data?.valid
       ? `<strong>${Number(data.rows)||0} albums détectés</strong><span>${Number(data.isbnPresent)||0} ISBN · ${Number(data.duplicateIsbnGroups)||0} groupe(s) d’ISBN partagé(s) · ${Number(data.ignoredRows)||0} ligne(s) ignorée(s)</span>`
-      : `<strong>CSV BDGest non reconnu</strong><span>${errors.map(escapeHtml).join(' ')||'Vérifiez le fichier ou collez son contenu complet.'}</span>`;
+      : `<strong>CSV BDGest non reconnu</strong><span>${errors.map(escapeHtml).join(' ')||'Vérifiez le fichier sélectionné.'}</span>`;
     preview.innerHTML=message+(errors.length&&data?.valid?`<span class="import-errors">${errors.map(escapeHtml).join(' ')}</span>`:'');
   };
   analyzeButton.onclick=async()=>{
-    if(source.reading||!source.text.trim()){setStatus('Choisissez un fichier ou collez le contenu CSV BDGest.');return;}
+    if(source.reading||!source.text.trim()){setStatus('Choisissez un fichier CSV BDGest.');return;}
     analyzeButton.disabled=true;importButton.disabled=true;setStatus('Analyse du format BDGest…');
     try{
       const r=await fetch('/api/import/bdgest/preview',{method:'POST',headers:{'content-type':'text/csv'},body:source.text}), d=await r.json().catch(()=>({})), result=d.preview||d;
-      if(r.status===404&&d.error==='Route API inconnue'){
-        const localResult=inspectLocalCsv(source.text);
-        renderPreview(localResult);
-        if(!localResult.valid)throw Object.assign(new Error(localResult.errors[0]||'CSV BDGest invalide'),{status:400});
-        source.analysis=localResult;importButton.disabled=false;setStatus(`${localResult.rows} albums prêts à importer. Aperçu local utilisé ; vérifiez puis cliquez sur « Importer ».`);return;
-      }
       renderPreview(result);
       if(!r.ok)throw Object.assign(new Error(d.error||`HTTP ${r.status}`),{status:r.status});
+      if(!result.valid)throw Object.assign(new Error(result.errors?.[0]||'CSV BDGest invalide'),{status:400});
       source.analysis=result;importButton.disabled=false;setStatus(`${result.rows} albums prêts à importer. Vérifiez l’aperçu puis cliquez sur « Importer ».`);
-    }catch(error){source.analysis=null;importButton.disabled=true;analyzeButton.disabled=!source.text.trim();setStatus(error.status===402?'Import massif réservé au Premium':error.message||'Analyse impossible.');}
+    }catch(error){source.analysis=null;importButton.disabled=true;analyzeButton.disabled=!source.text.trim();setStatus(error.status===402?'Import massif réservé au Premium':error.status===404?'Le service d’aperçu BDGest est indisponible. La version serveur doit être redémarrée avant l’import.':error.message||'Analyse impossible.');}
   };
   form.addEventListener('submit',async e=>{
     e.preventDefault();
@@ -261,4 +205,4 @@ function openWebhook(){modal(`<h2>Ajouter un webhook</h2><form id="webhookForm">
 function setTheme(t){state.theme=t;localStorage.setItem('bd-theme',t);document.body.dataset.theme=t;render()}
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-route],#themeBtn,#menuBtn');if(!button)return;if(button.id==='menuBtn'){e.preventDefault();$('.sidebar').classList.toggle('open');return}if(button.id==='themeBtn'){e.preventDefault();go('settings');return}if(button.dataset.route==='add'){openAdd();return}e.preventDefault();go(button.dataset.route)});
 $('#fab').onclick=openAdd;$('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){state.search=e.target.value;go('collection')}};document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement?.tagName!=='INPUT'){e.preventDefault();$('#globalSearch').focus()}});window.addEventListener('hashchange',()=>{state.route=routeFromHash();nav();void render()});
-(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260905-7',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
+(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260906-1',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();

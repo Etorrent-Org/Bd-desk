@@ -62,7 +62,7 @@ La preview de développement est disponible sur :
 
 `https://tatoune.alwaysdata.net/`
 
-Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements de `main` vers alwaysdata puis exécute un health check et un contrôle live des métadonnées. Si la clé API alwaysdata n'est pas exposée au workflow, le redémarrage HTTP automatique est ignoré et peut être effectué manuellement ; les contrôles live restent exécutés.
+Le workflow GitHub `Deploy preview to alwaysdata` synchronise les changements de `main` vers alwaysdata, redémarre le site via l'API AlwaysData, puis vérifie le health check, la route d'aperçu BDGest sans écriture et les métadonnées live. La clé API AlwaysData est obligatoire : sans elle, la livraison est arrêtée plutôt que de laisser tourner un ancien processus Node.
 
 La preview n'utilise que des données synthétiques et ne publie jamais le fichier privé d'import BDGest.
 
