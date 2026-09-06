@@ -28,14 +28,26 @@ function num(v) {
 }
 function bool(v) { return String(v).trim() === '1' ? 1 : 0; }
 
-export function parseBdgestCsv(text) {
+function csvObjects(text) {
   const clean = String(text).replace(/^\uFEFF/, '');
   const rows = parseDelimited(clean, ';');
-  if (!rows.length) return [];
+  if (!rows.length) return { headers: [], records: [] };
   const headers = rows[0].map(h => h.trim());
-  return rows.slice(1)
-    .filter(r => r.length)
-    .map(values => Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ''])))
+  const records = rows.slice(1)
+    .filter(r => r.length && r.some(v => String(v ?? '').trim() !== ''))
+    .map(values => Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ''])));
+  return { headers, records };
+}
+
+function countDuplicateGroups(values) {
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+  return [...counts.values()].filter(count => count > 1).length;
+}
+
+export function parseBdgestCsv(text) {
+  const { records } = csvObjects(text);
+  return records
     // A BDGest export can append headers for REVUE / ParaBD tables after the ALBUM rows.
     // Only the ALBUM records belong in BD Desk's album collection.
     .filter(o => String(o.Table || '').trim().toUpperCase() === 'ALBUM' && /^\d+$/.test(String(o.IdAlbum || '').trim()))
@@ -70,6 +82,41 @@ export function parseBdgestCsv(text) {
       tableName: o.Table || null,
       source: 'bdgest'
     }));
+}
+
+export function inspectBdgestCsv(text) {
+  const { headers, records } = csvObjects(text);
+  const requiredHeaders = ['Table', 'IdAlbum', 'Titre'];
+  const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+  const errors = [];
+  if (!headers.length) errors.push('Le fichier CSV est vide.');
+  if (missingHeaders.length) errors.push(`Colonnes BDGest manquantes : ${missingHeaders.join(', ')}.`);
+
+  const albumRecords = records.filter(record => String(record.Table || '').trim().toUpperCase() === 'ALBUM');
+  const invalidAlbumRecords = albumRecords.filter(record => !/^\d+$/.test(String(record.IdAlbum || '').trim()));
+  const validAlbumRecords = albumRecords.filter(record => /^\d+$/.test(String(record.IdAlbum || '').trim()));
+  const ignoredRows = records.length - albumRecords.length;
+  const duplicateIds = countDuplicateGroups(validAlbumRecords.map(record => String(record.IdAlbum).trim()));
+  const parsedRows = parseBdgestCsv(text);
+  const duplicateIsbnGroups = countDuplicateGroups(parsedRows.map(row => row.isbn).filter(Boolean));
+
+  if (albumRecords.length === 0 && !missingHeaders.length) errors.push('Aucune ligne ALBUM BDGest valide n’a été trouvée.');
+  if (invalidAlbumRecords.length) errors.push(`${invalidAlbumRecords.length} ligne(s) ALBUM ont un IdAlbum invalide.`);
+  if (duplicateIds) errors.push(`${duplicateIds} groupe(s) d’IdAlbum dupliqué(s) détecté(s).`);
+
+  return {
+    valid: errors.length === 0 && parsedRows.length > 0,
+    headers,
+    missingHeaders,
+    rows: parsedRows.length,
+    sourceRows: parsedRows.length,
+    ignoredRows,
+    invalidRows: invalidAlbumRecords.length,
+    duplicateIds,
+    isbnPresent: parsedRows.filter(row => row.isbn).length,
+    duplicateIsbnGroups,
+    errors
+  };
 }
 
 export function toIsoDate(fr) {

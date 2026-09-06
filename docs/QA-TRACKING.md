@@ -11,6 +11,16 @@ Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à vali
 
 ## Tableau de suivi
 
+## Réécriture complète de l’import — 2026-09-06
+
+| Gate | Validation | Preuve |
+|---|---|---|
+| Source fichier et secours par collage | ⏳ À valider après CI et déploiement : champ natif visible, lecture locale `FileReader`, glisser-déposer et zone de collage. | Tests `tests/import-ui.test.js` + contrôle live |
+| Analyse avant écriture | ⏳ À valider après CI et déploiement : aperçu `POST /api/import/bdgest/preview`, sans mutation de la base. | Tests `tests/csv.test.js` et `tests/app.test.js` |
+| Import réel et idempotence | ⏳ À valider après CI et déploiement. | `scripts/validate-bdgest.js` sur le fichier privé |
+| Compatibilité du sélecteur système cloud | ⚠️ Le navigateur cloud ne peut pas automatiser la boîte de dialogue native ; seule la présence et la visibilité du champ sont vérifiables automatiquement. | Validation DOM + parcours collage |
+| Déploiement AlwaysData | ⏳ À faire uniquement après tous les contrôles verts. | PR de la réécriture |
+
 ## Passe complète — 2026-09-04
 
 Cette passe est réalisée depuis une branche dédiée `fix/mvp-free-premium`, créée après synchronisation avec `origin/main` à partir du commit `9c2628f`. Le fichier privé d’import est utilisé uniquement hors dépôt et n’est pas publié.

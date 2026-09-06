@@ -78,6 +78,18 @@ test('l’import BDGest Premium fonctionne et reste idempotent par IdAlbum',()=>
   r=await fetch(base+'/api/albums?limit=500'); assert.equal((await r.json()).total,2);
 }));
 
+test('l’aperçu BDGest vérifie le CSV sans écrire en base',()=>withServer(async({base,config,db})=>{
+  await activate(base,config);
+  const csv='Table;IdAlbum;ISBN;Serie;Num;Titre\nALBUM;9002;9782203237766;Saga;2;Aperçu';
+  let r=await fetch(base+'/api/import/bdgest/preview',{method:'POST',headers:{'content-type':'text/csv'},body:csv});
+  assert.equal(r.status,200);
+  const preview=await r.json();
+  assert.equal(preview.valid,true); assert.equal(preview.rows,1); assert.equal(preview.isbnPresent,1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM albums').get().c,1);
+  r=await fetch(base+'/api/import/bdgest/preview',{method:'POST',headers:{'content-type':'text/csv'},body:'not a BDGest export'});
+  assert.equal(r.status,400); assert.equal((await r.json()).preview.valid,false);
+}));
+
 test('proxy de couverture rejette un contenu non image',()=>withServer(async({base,db})=>{
   const a=createAlbum(db,{series:'Saga',number:'1',title:'Mauvais MIME',isbn:'9782344059814'});
   persistCoverDecision(db,a.id,{url:'https://www.images.hachette-livre.fr/cover.jpeg',source:'hachette',confidence:.94});
