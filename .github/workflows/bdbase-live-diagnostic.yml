@@ -50,13 +50,16 @@ jobs:
             {id:156,isbn:'9782355741302',series:'Fear Agent',title:'Intégrale Volume Deux',publisher:'Akileos'},
             {id:4,series:'One shot',title:'Sans ISBN',publisher:'Editeur C'}
           ];
-          let found=0;
-          for(const album of albums){
-            const started=Date.now();
-            const candidates=await fetchBdbaseCoverCandidates(album,{timeoutMs:10000});
-            const c=candidates[0];
-            if(c)found++;
-            console.log(JSON.stringify({id:album.id,isbn:album.isbn||null,series:album.series,title:album.title,found:Boolean(c),sourceUrl:c?.sourceUrl||null,coverUrl:c?.coverUrl||null,width:c?.coverWidth||null,height:c?.coverHeight||null,identifierMatch:c?.coverEvidence?.identifierMatch||false,score:c?.coverEvidence?.bibliographicScore||null,ms:Date.now()-started}));
+          const results=new Array(albums.length);let cursor=0;
+          async function worker(){
+            while(cursor<albums.length){
+              const index=cursor++,album=albums[index],started=Date.now();
+              const candidates=await fetchBdbaseCoverCandidates(album,{timeoutMs:10000});
+              const c=candidates[0];
+              results[index]={id:album.id,isbn:album.isbn||null,series:album.series,title:album.title,found:Boolean(c),sourceUrl:c?.sourceUrl||null,coverUrl:c?.coverUrl||null,width:c?.coverWidth||null,height:c?.coverHeight||null,identifierMatch:c?.coverEvidence?.identifierMatch||false,score:c?.coverEvidence?.bibliographicScore||null,ms:Date.now()-started};
+            }
           }
-          console.log(`FOUND=${found}/${albums.length}`);
+          await Promise.all([worker(),worker(),worker(),worker(),worker()]);
+          for(const result of results)console.log(JSON.stringify(result));
+          console.log(`FOUND=${results.filter(result=>result.found).length}/${albums.length}`);
           NODE
