@@ -65,16 +65,29 @@ function migrateRealCoverEscalationV4(db){
   db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(key,new Date().toISOString());
 }
 
+function migrateBibliographicCoverV5(db){
+  ensureCoverStatus(db);
+  const key='bibliographic-cover-v5';
+  if(db.prepare('SELECT 1 FROM settings WHERE key=?').get(key))return;
+  db.prepare(`UPDATE albums
+    SET cover_checked_at=NULL, cover_decision='bibliographic-cover-v5-recheck'
+    WHERE COALESCE(cover_origin,'')<>'user'
+      AND ${escalationWhere()}`).run();
+  db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(key,new Date().toISOString());
+}
+
 export function migrate(db){
   core.migrate(db);
   migrateCoverQualityV3(db);
   migrateRealCoverEscalationV4(db);
+  migrateBibliographicCoverV5(db);
 }
 
 export function openDatabase(dbPath=':memory:'){
   const db=core.openDatabase(dbPath);
   migrateCoverQualityV3(db);
   migrateRealCoverEscalationV4(db);
+  migrateBibliographicCoverV5(db);
   return db;
 }
 
@@ -86,7 +99,10 @@ function updateCoverStatus(db,id,album){
 
 function isPartnerCover(selection){
   if(selection?.source!=='bdfugue')return false;
-  try{return new URL(String(selection.url||'')).protocol==='https:'}catch{return false}
+  try{
+    const url=new URL(String(selection.url||''));
+    return url.protocol==='https:'&&(url.hostname==='bdfugue.com'||url.hostname==='www.bdfugue.com'||url.hostname.endsWith('.bdfugue.com'));
+  }catch{return false}
 }
 
 export function persistCoverDecision(db,id,selection={}){
@@ -114,8 +130,8 @@ export function persistCoverDecision(db,id,selection={}){
       return {updated:false,reason:'preserve-better-partner-cover',album:core.getAlbum(db,id)};
     }
     db.prepare(`UPDATE albums SET cover_url=?,cover_origin='partner',cover_source='bdfugue',cover_confidence=?,
-      cover_width=?,cover_height=?,cover_bytes=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision='verified-partner-source',
-      cover_status='verified',updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(selection.url,confidence,selection.width||null,selection.height||null,selection.bytes||null,id);
+      cover_width=?,cover_height=?,cover_bytes=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=?,
+      cover_status='verified',updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(selection.url,confidence,selection.width||null,selection.height||null,selection.bytes||null,selection.decision||'verified-partner-source',id);
     return {updated:true,reason:'partner-cover-selected',album:core.getAlbum(db,id)};
   }
 
@@ -139,7 +155,7 @@ export function coverResolutionStatus(db){
   const lowRes=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE cover_url IS NOT NULL AND TRIM(cover_url)<>'' AND COALESCE(cover_origin,'')<>'user' AND cover_width IS NOT NULL AND cover_width>0 AND ((cover_height IS NOT NULL AND cover_height>0 AND MIN(cover_width,cover_height)<300) OR ((cover_height IS NULL OR cover_height<=0) AND cover_width<300))`).get().c||0);
   const rawWithCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE NOT ${noCoverWhere()}`).get().c||0);
   const withCover=Math.max(rawWithCover-lowRes,0);
-  const pending=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user'`).get().c||0);
+  const pending=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' AND ${escalationWhere()}`).get().c||0);
   const withoutIsbn=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND (isbn IS NULL OR TRIM(isbn)='')`).get().c||0);
   const checkedWithoutCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND cover_checked_at IS NOT NULL`).get().c||0);
   return {total,withCover,missing:Math.max(total-withCover,0),lowRes,pending,withoutIsbn,checkedWithoutCover,coveragePercent:total?Math.round(withCover/total*100):0};
@@ -149,8 +165,7 @@ export function prepareCoverResolutionQueue(db){
   ensureCoverStatus(db);
   db.prepare(`UPDATE albums
     SET cover_checked_at=NULL, cover_decision='real-cover-retry'
-    WHERE isbn IS NOT NULL AND TRIM(isbn)<>''
-      AND COALESCE(cover_origin,'')<>'user'
+    WHERE COALESCE(cover_origin,'')<>'user'
       AND ${escalationWhere()}`).run();
   return coverResolutionStatus(db);
 }
@@ -158,7 +173,7 @@ export function prepareCoverResolutionQueue(db){
 export function listPendingCoverAlbums(db,limit=8){
   const parsed=Number.parseInt(limit,10);
   const safeLimit=Math.min(Math.max(Number.isInteger(parsed)?parsed:8,1),24);
-  return db.prepare(`SELECT id,isbn,series,number,title,publisher,cover_url,cover_origin,cover_source,cover_width,cover_height,cover_checked_at,cover_status FROM albums WHERE isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' ORDER BY CASE WHEN cover_url IS NULL OR TRIM(cover_url)='' THEN 0 ELSE 1 END,id LIMIT ?`).all(safeLimit);
+  return db.prepare(`SELECT id,isbn,series,number,title,publisher,cover_url,cover_origin,cover_source,cover_width,cover_height,cover_checked_at,cover_status FROM albums WHERE cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' AND ${escalationWhere()} ORDER BY CASE WHEN cover_url IS NULL OR TRIM(cover_url)='' THEN 0 ELSE 1 END,id LIMIT ?`).all(safeLimit);
 }
 
 export function dashboard(db){
