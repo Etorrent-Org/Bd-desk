@@ -6,13 +6,19 @@ export * from './metadata-core.js';
 export const hachetteSearchUrl=core.hachetteSearchUrl;
 
 export const MIN_COVER_EDGE=300;
+export const COVER_ESCALATION_EDGE=700;
 
-function lowResolutionCover(cover){
+function coverShortEdge(cover){
   const width=Number(cover?.width||cover?.coverWidth||cover?.coverSizeHint||0);
   const height=Number(cover?.height||cover?.coverHeight||0);
-  if(width>0&&height>0)return Math.min(width,height)<MIN_COVER_EDGE;
-  if(width>0)return width<MIN_COVER_EDGE;
-  return false;
+  if(width>0&&height>0)return Math.min(width,height);
+  return width>0?width:0;
+}
+
+function lowResolutionCover(cover){return coverShortEdge(cover)>0&&coverShortEdge(cover)<MIN_COVER_EDGE}
+function shouldEscalateCover(cover){
+  const edge=coverShortEdge(cover);
+  return !cover?.url||edge===0||edge<COVER_ESCALATION_EDGE;
 }
 
 function qualityGate(resolution){
@@ -50,6 +56,8 @@ export async function fetchMetadata(isbn,opts={}){
   const base=await core.fetchMetadata(isbn,opts);
   if(opts.officialWeb===false)return base;
   if(opts.fetchImpl&&opts.fetchImpl!==globalThis.fetch)return base;
+  const provisional=core.resolveCandidates(isbn,base);
+  if(!shouldEscalateCover(provisional.cover))return base;
   try{
     const extra=await fetchOfficialCoverCandidates(isbn,{fetchImpl:opts.fetchImpl||globalThis.fetch,timeoutMs:opts.timeoutMs});
     return [...base,...extra];
