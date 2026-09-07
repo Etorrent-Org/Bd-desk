@@ -30,6 +30,25 @@ test('BDbase retrouve Trafika par ISBN exact et prend la couverture non miniatur
   assert.equal(candidates[0].coverWidth,900);
 });
 
+test('BDbase prend aussi en charge les routes comics pour Rags et Fear Agent',async()=>{
+  const fetchImpl=async url=>{
+    const value=String(url);
+    if(value.includes('/recherche?sch=3770013604065'))return htmlResponse(`<a href="/comics/rags-1" class="card-link">Rags 1</a>`,value);
+    if(value==='https://www.bdbase.fr/comics/rags-1')return htmlResponse(`<html><h1>Rags 1</h1><img src="https://static.bdbase.fr/images/books/20/couvertures/rags1.jpg"><div>ISBN 3770013604065</div></html>`,value);
+    if(value.includes('/recherche?sch=9782355741302'))return htmlResponse(`<a href="/comics/fear-agent-integrale-volume-deux" class="card-link">Fear Agent Intégrale Volume Deux</a>`,value);
+    if(value==='https://www.bdbase.fr/comics/fear-agent-integrale-volume-deux')return htmlResponse(`<html><h1>Fear Agent Intégrale Volume Deux</h1><img src="https://static.bdbase.fr/images/books/21/couvertures/fear2.jpg"><div>ISBN 9782355741302</div></html>`,value);
+    if(value.includes('/couvertures/rags1.jpg'))return imageResponse(650,936);
+    if(value.includes('/couvertures/fear2.jpg'))return imageResponse(719,1050);
+    return {ok:false,url:value};
+  };
+  const rags=await fetchBdbaseCoverCandidates({isbn:'3770013604065',series:'Rags',title:'Rags 1',publisher:'Alayone Comics'},{fetchImpl});
+  const fear=await fetchBdbaseCoverCandidates({isbn:'9782355741302',series:'Fear Agent',title:'Intégrale Volume Deux',publisher:'Akileos'},{fetchImpl});
+  assert.equal(rags.length,1);
+  assert.match(rags[0].sourceUrl,/\/comics\/rags-1$/);
+  assert.equal(fear.length,1);
+  assert.match(fear[0].sourceUrl,/fear-agent-integrale-volume-deux$/);
+});
+
 test('BDbase associe le bon visuel à la bonne édition quand une page contient plusieurs ISBN',async()=>{
   const fetchImpl=async url=>{
     const value=String(url);
