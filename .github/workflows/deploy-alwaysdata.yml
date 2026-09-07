@@ -227,7 +227,8 @@ jobs:
       - name: Verify live same-origin cover proxy
         run: |
           ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
-          ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          printf '%s' "$ALBUMS" > /tmp/bd-desk-albums.json
+          ALBUM_ID="$(node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" /tmp/bd-desk-albums.json)"
           curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
             --request POST "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/resolve" >/tmp/bd-desk-cover-resolution.json
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
