@@ -8,6 +8,7 @@ import { canonicalIsbn } from './isbn.js';
 import { inspectBdgestCsv } from './csv.js';
 import { verifyLicense, hasFeature } from './license.js';
 import { fetchMetadata, resolveCandidates } from './metadata.js';
+import { fetchBibliographicCoverCandidates } from './official-covers.js';
 import { handleMcp, validateMcpHttp, MCP_PROTOCOL_VERSION } from './mcp.js';
 import { dispatchWebhook } from './webhooks.js';
 import { normalizeAlbumPayload, normalizeLoanPayload, normalizeWebhookPayload, normalizeApiKeyPayload } from './validation.js';
@@ -59,6 +60,8 @@ export function createBdDeskApp(config, opts={}){
   const db=opts.db||openDatabase(config.dbPath);
   if(opts.seed!==false) seedIfEmpty(db,config.seedCsvPath);
   const metadataFetcher=opts.fetchMetadataImpl||fetchMetadata;
+  const bibliographicFetcher=opts.fetchBibliographicCoverCandidatesImpl||fetchBibliographicCoverCandidates;
+  const bibliographicFetchImpl=opts.officialCoverFetchImpl||globalThis.fetch;
   const metadataCache=new Map();
   const metadataCacheTtlMs=Number(config.metadataCacheTtlMs)>0?Number(config.metadataCacheTtlMs):300_000;
   const webhookDispatcher=opts.dispatchWebhookImpl||dispatchWebhook;
@@ -84,12 +87,56 @@ export function createBdDeskApp(config, opts={}){
     try{return await promise}catch(error){if(metadataCache.get(key)?.promise===promise)metadataCache.delete(key);throw error}
   }
   const coverJobSnapshot=()=>({...coverJob,coverStats:coverResolutionStatus(db)});
+  function coverShortEdge(album){
+    const width=Number(album?.cover_width||album?.width||0),height=Number(album?.cover_height||album?.height||0);
+    if(width>0&&height>0)return Math.min(width,height);
+    return width>0?width:0;
+  }
+  function candidateSelection(candidate){
+    return {
+      url:candidate?.coverUrl||null,
+      source:candidate?.source||'bdfugue',
+      confidence:Number(candidate?.confidence)||Number(candidate?.coverEvidence?.identifierMatch?0.93:0.86),
+      width:Number(candidate?.coverWidth)||null,
+      height:Number(candidate?.coverHeight)||null,
+      bytes:Number(candidate?.coverBytes)||null,
+      decision:candidate?.coverEvidence?.identifierMatch?'verified-partner-source':'bibliographic-bdfugue-match',
+      reason:candidate?.coverEvidence?.identifierMatch?'identifier-match':'bibliographic-match',
+      evidence:[candidate?.coverEvidence||{}]
+    };
+  }
   async function resolveAlbumCover(album){
-    if(!album?.isbn)return {updated:false,reason:'isbn-required',album};
-    const candidates=await metadataFor(album.isbn);
-    const resolution=resolveCandidates(album.isbn,candidates,album);
-    const decision=persistCoverDecision(db,album.id,resolution.cover);
-    return {updated:decision.updated,reason:decision.reason,album:decision.album,resolution};
+    if(!album)return {updated:false,reason:'album-required',album:null,resolution:null};
+    let candidates=[],resolution=null,primaryDecision=null;
+    if(album.isbn){
+      candidates=await metadataFor(album.isbn);
+      resolution=resolveCandidates(album.isbn,candidates,album);
+      primaryDecision=persistCoverDecision(db,album.id,resolution.cover);
+      if(primaryDecision.album?.cover_url&&coverShortEdge(primaryDecision.album)>=700){
+        return {updated:primaryDecision.updated,reason:primaryDecision.reason,album:primaryDecision.album,resolution:{...resolution,candidates}};
+      }
+    }
+
+    let bibliographic=[];
+    try{
+      bibliographic=await bibliographicFetcher(primaryDecision?.album||album,{fetchImpl:bibliographicFetchImpl,timeoutMs:9000});
+    }catch{}
+    if(bibliographic.length){
+      const selected=bibliographic[0];
+      const selection=candidateSelection(selected);
+      const decision=persistCoverDecision(db,album.id,selection);
+      const resolved={
+        ...(resolution||{isbn:album.isbn||null,decision:'bibliographic-cover',fields:{},cover:{}}),
+        decision:'bibliographic-cover',
+        cover:{...selection,sourceUrl:selected.sourceUrl||selected.sourceId||null},
+        candidates:[...candidates,...bibliographic]
+      };
+      return {updated:Boolean(primaryDecision?.updated||decision.updated),reason:decision.reason,album:decision.album,resolution:resolved};
+    }
+
+    if(primaryDecision)return {updated:primaryDecision.updated,reason:primaryDecision.reason,album:primaryDecision.album,resolution:{...resolution,candidates}};
+    const decision=persistCoverDecision(db,album.id,{url:null,decision:'bibliographic-no-cover',reason:'no-bibliographic-cover'});
+    return {updated:false,reason:decision.reason,album:decision.album,resolution:{isbn:null,decision:'bibliographic-no-cover',fields:{},cover:{url:null,decision:'bibliographic-no-cover',reason:'no-bibliographic-cover'},candidates:[]}};
   }
   async function runCoverJob(){
     const job={status:'running',processed:0,resolved:0,unresolved:0,failed:0,startedAt:new Date().toISOString(),finishedAt:null,lastError:null};
@@ -195,7 +242,6 @@ export function createBdDeskApp(config, opts={}){
         const a=getAlbum(db,m[1]);
         if(!a)return json(res,404,{error:'Album introuvable'});
         if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'});
-        if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false});
         const result=await resolveAlbumCover(a);
         return json(res,200,{album:result.album,resolution:result.resolution,candidates:result.resolution?.candidates||[],changed:result.updated,reason:result.reason});
       }
