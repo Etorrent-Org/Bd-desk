@@ -1,5 +1,6 @@
 import { canonicalIsbn } from './isbn.js';
 import { imageDimensions } from './metadata-core.js';
+import { fetchBdbaseCoverCandidates } from './bdbase-covers.js';
 
 const USER_AGENT='BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)';
 const MAX_IMAGE_BYTES=10*1024*1024;
@@ -249,8 +250,12 @@ export async function fetchBdfugueCoverByMetadata(album,opts={}){
 }
 
 export async function fetchBibliographicCoverCandidates(album,opts={}){
-  const settled=await Promise.allSettled([fetchBdfugueCoverByMetadata(album,opts)]);
-  return settled.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+  // A freshly resolved official BnF cover uses the original-image endpoint; avoid a redundant web lookup
+  // when that source is already present but does not expose dimensions in its metadata record.
+  if(album?.cover_url&&album?.cover_source==='bnf'&&!Number(album?.cover_width||0))return [];
+  const bdbase=await fetchBdbaseCoverCandidates(album,opts).catch(()=>[]);
+  if(bdbase.length)return bdbase;
+  return fetchBdfugueCoverByMetadata(album,opts).catch(()=>[]);
 }
 
 export async function fetchOfficialCoverCandidates(isbn,opts={}){

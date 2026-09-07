@@ -49,6 +49,7 @@
   function sourceTitle(source){
     if(source==='hachette')return 'Source : catalogue officiel Glénat / Hachette Livre · récupérée le '+dateFr();
     if(source==='media-participations')return 'Source : catalogue éditeur Média-Participations · ISBN vérifié · récupérée le '+dateFr();
+    if(source==='bdbase')return 'Source : BDbase · édition vérifiée · récupérée le '+dateFr();
     if(source==='bdfugue')return 'Source : BDfugue · album vérifié · récupérée le '+dateFr();
     if(source==='bnf'||source==='bnf-intermarc')return 'Source : Bibliothèque nationale de France · récupérée le '+dateFr();
     if(source==='google-books')return 'Source : Google Books · ISBN vérifié';
