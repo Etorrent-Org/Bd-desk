@@ -21,6 +21,13 @@ function similarity(target,value){
   if(!wantedTokens.length)return 0;
   return wantedTokens.filter(token=>actualTokens.has(token)).length/wantedTokens.length;
 }
+function catalogIdentifier(value){
+  const isbn=canonicalIsbn(value);
+  if(isbn)return isbn;
+  const raw=String(value||'').replace(/[^0-9X]/gi,'').toUpperCase();
+  // Some French comics use EAN-13 identifiers beginning with 377 rather than a book ISBN.
+  return /^\d{13}$/.test(raw)?raw:null;
+}
 function h1(html){const match=String(html||'').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);return match?visibleText(match[1]):''}
 function shortEdge(dimensions){const w=Number(dimensions?.width||0),h=Number(dimensions?.height||0);return w&&h?Math.min(w,h):w||0}
 function trustedImage(value){try{const url=new URL(String(value||''));return url.protocol==='https:'&&url.hostname===STATIC_HOST&&!url.pathname.includes('/thumbs/')&&/\/couvertures\//.test(url.pathname)}catch{return false}}
@@ -37,13 +44,13 @@ function fullCoverUrls(html){
   }
   return result;
 }
-function flexibleIsbnRegex(isbn){
-  const n=canonicalIsbn(isbn);
+function flexibleIdentifierRegex(value){
+  const n=catalogIdentifier(value);
   if(!n)return null;
   return new RegExp(n.split('').map(char=>char.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('[^0-9X]{0,8}'),'i');
 }
-function coverForIsbn(html,isbn){
-  const regex=flexibleIsbnRegex(isbn);
+function coverForIdentifier(html,value){
+  const regex=flexibleIdentifierRegex(value);
   if(!regex)return null;
   const match=regex.exec(String(html||''));
   if(!match)return null;
@@ -51,7 +58,7 @@ function coverForIsbn(html,isbn){
   return covers.at(-1)?.url||null;
 }
 function primaryCover(html){return fullCoverUrls(html)[0]?.url||null}
-function pageContainsIsbn(html,isbn){return Boolean(flexibleIsbnRegex(isbn)?.test(String(html||'')))}
+function pageContainsIdentifier(html,value){return Boolean(flexibleIdentifierRegex(value)?.test(String(html||'')))}
 
 async function timedFetch(fetchImpl,url,accept,timeoutMs=9000){
   const controller=new AbortController();
@@ -102,7 +109,7 @@ function metadataMatch(album,html,pageTitle){
 }
 function queries(album){
   const values=[];
-  if(album?.isbn)values.push(canonicalIsbn(album.isbn));
+  if(album?.isbn)values.push(catalogIdentifier(album.isbn));
   values.push(
     [album?.series,album?.number,album?.title].filter(Boolean).join(' '),
     [album?.series,album?.title].filter(Boolean).join(' '),
@@ -112,27 +119,27 @@ function queries(album){
   return [...new Set(values.map(value=>String(value||'').trim()).filter(value=>value.length>2))].slice(0,5);
 }
 function candidate(album,page,imageUrl,quality,{identifierMatch=false,score=0}={}){
-  const isbn=canonicalIsbn(album?.isbn);
+  const identifier=catalogIdentifier(album?.isbn);
   return {
     source:'bdbase',sourceId:page.url,sourceUrl:page.url,title:h1(page.html)||album?.title||null,
-    identifiers:identifierMatch&&isbn?[isbn]:[],coverIdentifiers:identifierMatch&&isbn?[isbn]:[],coverUrl:imageUrl,
+    identifiers:identifierMatch&&identifier?[identifier]:[],coverIdentifiers:identifierMatch&&identifier?[identifier]:[],coverUrl:imageUrl,
     coverWidth:quality.width,coverHeight:quality.height,coverBytes:quality.bytes,
     confidence:identifierMatch?0.96:Math.min(0.92,0.72+score*.2),
     coverEvidence:{official:false,identifierMatch,bibliographicDatabase:true,bibliographicMatch:!identifierMatch,bibliographicScore:score,sourcePage:page.url,scraped:true}
   };
 }
 
-async function exactIsbnCandidate(album,fetchImpl,timeoutMs){
-  const isbn=canonicalIsbn(album?.isbn);if(!isbn)return null;
-  const search=await fetchHtml(fetchImpl,`${BASE}/recherche?sch=${encodeURIComponent(isbn)}`,timeoutMs);if(!search)return null;
-  const links=searchLinks(search.html,{...album,title:album?.title||isbn});
+async function exactIdentifierCandidate(album,fetchImpl,timeoutMs){
+  const identifier=catalogIdentifier(album?.isbn);if(!identifier)return null;
+  const search=await fetchHtml(fetchImpl,`${BASE}/recherche?sch=${encodeURIComponent(identifier)}`,timeoutMs);if(!search)return null;
+  const links=searchLinks(search.html,{...album,title:album?.title||identifier});
   for(const link of links.length?links:[...searchLinks(search.html,{title:'',series:''})]){
-    const page=await fetchHtml(fetchImpl,link.url,timeoutMs);if(!page||!pageContainsIsbn(page.html,isbn))continue;
+    const page=await fetchHtml(fetchImpl,link.url,timeoutMs);if(!page||!pageContainsIdentifier(page.html,identifier))continue;
     const pageTitle=h1(page.html);
     const titleScore=album?.title?similarity(album.title,pageTitle):1;
-    // An ISBN reused by a coffret must not force its box cover onto unrelated component titles.
+    // An identifier reused by a coffret must not force its box cover onto unrelated component titles.
     if(album?.title&&titleScore!==null&&titleScore<.28)continue;
-    const imageUrl=coverForIsbn(page.html,isbn)||primaryCover(page.html);if(!imageUrl)continue;
+    const imageUrl=coverForIdentifier(page.html,identifier)||primaryCover(page.html);if(!imageUrl)continue;
     const quality=await inspectImage(fetchImpl,imageUrl,timeoutMs);if(!quality)continue;
     return candidate(album,page,imageUrl,quality,{identifierMatch:true,score:titleScore||0});
   }
@@ -162,7 +169,7 @@ async function bibliographicCandidates(album,fetchImpl,timeoutMs){
 export async function fetchBdbaseCoverCandidates(album,opts={}){
   if(!album||(!album.isbn&&!album.title&&!album.series))return [];
   const fetchImpl=opts.fetchImpl||globalThis.fetch;
-  const exact=await exactIsbnCandidate(album,fetchImpl,opts.timeoutMs);
+  const exact=await exactIdentifierCandidate(album,fetchImpl,opts.timeoutMs);
   if(exact)return [exact];
   return bibliographicCandidates(album,fetchImpl,opts.timeoutMs);
 }
