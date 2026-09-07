@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, seedIfEmpty, listAlbums, listPendingCoverAlbums, coverResolutionStatus, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
+import { openDatabase, seedIfEmpty, listAlbums, listPendingCoverAlbums, coverResolutionStatus, prepareCoverResolutionQueue, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
 import { canonicalIsbn } from './isbn.js';
 import { inspectBdgestCsv } from './csv.js';
 import { verifyLicense, hasFeature } from './license.js';
@@ -23,12 +23,12 @@ function bearer(req){ const h=req.headers.authorization||''; return h.startsWith
 function hash(v){ return crypto.createHash('sha256').update(v).digest('hex'); }
 function randomKey(){ return `bdk_${crypto.randomBytes(24).toString('base64url')}`; }
 
-const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io']);
+const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io','bdfugue.com','www.bdfugue.com']);
 const COVER_MAX_BYTES=10*1024*1024;
 function isTrustedCoverUrl(value){
   try{
     const url=new URL(String(value||''));
-    return url.protocol==='https:'&&(COVER_HOSTS.has(url.hostname)||url.hostname.endsWith('.hachette-livre.fr'));
+    return url.protocol==='https:'&&(COVER_HOSTS.has(url.hostname)||url.hostname.endsWith('.hachette-livre.fr')||url.hostname.endsWith('.bdfugue.com'));
   }catch{return false}
 }
 async function fetchCover(fetchImpl,url){
@@ -129,6 +129,7 @@ export function createBdDeskApp(config, opts={}){
   }
   function startCoverJob(){
     if(coverJob.status==='running')return false;
+    prepareCoverResolutionQueue(db);
     if(!coverResolutionStatus(db).pending){
       coverJob={...coverJob,status:'completed',finishedAt:coverJob.finishedAt||new Date().toISOString()};
       return false;
@@ -201,7 +202,7 @@ export function createBdDeskApp(config, opts={}){
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/image$/);
       if(m&&req.method==='GET'){
         const a=getAlbum(db,m[1]);
-        if(!a||a.cover_origin!=='machine'||!isTrustedCoverUrl(a.cover_url))return json(res,404,{error:'Couverture machine introuvable'});
+        if(!a||!['machine','partner'].includes(a.cover_origin)||!isTrustedCoverUrl(a.cover_url))return json(res,404,{error:'Couverture machine introuvable'});
         const cover=await fetchCover(coverFetcher,a.cover_url);
         if(!cover)return json(res,502,{error:'Source de couverture indisponible'});
         res.writeHead(200,{'content-type':cover.contentType,'content-length':cover.buffer.length,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; img-src 'self'; frame-ancestors 'none'"});
