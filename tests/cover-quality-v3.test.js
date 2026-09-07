@@ -14,13 +14,23 @@ function pngHeader(width=900,height=1400){
   return buffer;
 }
 
-function bdfugueFetch(){
-  const image=pngHeader();
+function bdfugueFetch({lowRes=false,foreign=false}={}){
+  const image=pngHeader(lowRes?120:900,lowRes?180:1400);
   return async url=>{
     const value=String(url);
     if(value.includes('/a/?'))return {
       ok:true,
-      url:'https://www.bdfugue.com/album-test',
+      url:foreign?'https://example.test/not-bdfugue':'https://www.bdfugue.com/album-test',
+      text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.test/cover.png"></body></html>`
+    };
+    if(value.includes('/catalogsearch/result'))return {
+      ok:true,
+      url:value,
+      text:async()=>`<html><body><a href="/album-test">Album test</a></body></html>`
+    };
+    if(value==='https://www.bdfugue.com/album-test')return {
+      ok:true,
+      url:value,
       text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.test/cover.png"></body></html>`
     };
     if(value==='https://static.bdfugue.test/cover.png')return {ok:true,arrayBuffer:async()=>image};
@@ -71,10 +81,16 @@ test('une couverture partenaire BDfugue HD est conservée et une moins bonne ne 
   assert.equal(second.reason,'preserve-better-partner-cover');
 });
 
-test('BDfugue reste désactivé sans identifiant partenaire',async()=>{
+test('BDfugue est interrogé directement sans identifiant partenaire',async()=>{
   const previous=process.env.BDFUGUE_AFFILIATE_ID;
   delete process.env.BDFUGUE_AFFILIATE_ID;
-  try{assert.deepEqual(await fetchBdfugueCover(isbn,{fetchImpl:bdfugueFetch()}),[])}finally{
+  try{
+    const candidates=await fetchBdfugueCover(isbn,{fetchImpl:bdfugueFetch()});
+    assert.equal(candidates.length,1);
+    assert.equal(candidates[0].source,'bdfugue');
+    assert.equal(candidates[0].coverWidth,900);
+    assert.equal(candidates[0].coverEvidence.scraped,true);
+  }finally{
     if(previous===undefined)delete process.env.BDFUGUE_AFFILIATE_ID;else process.env.BDFUGUE_AFFILIATE_ID=previous;
   }
 });
@@ -93,7 +109,12 @@ test('BDfugue valide ISBN, page finale et dimensions avant de proposer la couver
   assert.equal(all.length,1);
 });
 
-test('BDfugue rejette une redirection hors domaine',async()=>{
-  const fetchImpl=async()=>({ok:true,url:'https://example.test/not-bdfugue',text:async()=>`ISBN ${isbn}`});
-  assert.deepEqual(await fetchBdfugueCover(isbn,{affiliateId:'partner-test',fetchImpl}),[]);
+test('BDfugue refuse une image trop petite et continue à chercher',async()=>{
+  assert.deepEqual(await fetchBdfugueCover(isbn,{fetchImpl:bdfugueFetch({lowRes:true})}),[]);
+});
+
+test('BDfugue rejette une redirection hors domaine puis tente la recherche directe',async()=>{
+  const candidates=await fetchBdfugueCover(isbn,{affiliateId:'partner-test',fetchImpl:bdfugueFetch({foreign:true})});
+  assert.equal(candidates.length,1);
+  assert.equal(candidates[0].source,'bdfugue');
 });
