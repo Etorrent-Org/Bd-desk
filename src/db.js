@@ -254,7 +254,7 @@ export function seriesSummary(db) {
 export function dashboard(db) {
   const stats=db.prepare(`SELECT COUNT(*) albums, COUNT(DISTINCT series) series, COALESCE(SUM(CASE WHEN read=1 THEN 1 ELSE 0 END),0) read, COALESCE(SUM(CASE WHEN wishlist=1 THEN 1 ELSE 0 END),0) wishlist, COALESCE(SUM(CASE WHEN first_edition=1 THEN 1 ELSE 0 END),0) eo, COALESCE(SUM(purchase_price),0) spent FROM albums`).get();
   const series=seriesSummary(db); const missing=series.reduce((n,s)=>n+s.missing.length,0);
-  const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC, id DESC LIMIT 8`).all();
+  const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC, id DESC LIMIT 16`).all();
   const resume=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL), id LIMIT 6`).all();
   return {...stats,missing,recent,resume,coverStats:coverResolutionStatus(db),readPercent:stats.albums?Math.round(stats.read/stats.albums*100):0};
 }

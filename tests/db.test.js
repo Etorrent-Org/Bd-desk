@@ -7,6 +7,7 @@ test('CRUD manuel',()=>{const db=openDatabase(':memory:');const a=createAlbum(db
 test('détection trous de série',()=>{const db=openDatabase(':memory:');createAlbum(db,{series:'Saga',number:'1',title:'1'});createAlbum(db,{series:'Saga',number:'3',title:'3'});const s=seriesSummary(db).find(x=>x.name==='Saga');assert.deepEqual(s.missing,[2])});
 test('seedIfEmpty ne double pas',()=>{const db=openDatabase(':memory:');const tmp=new URL('./fixtures/bdgest-sample.csv',import.meta.url).pathname;assert.equal(seedIfEmpty(db,tmp).seeded,true);assert.equal(seedIfEmpty(db,tmp).seeded,false)});
 test('import BDGest ne fabrique pas de couverture Open Library',()=>{const db=openDatabase(':memory:');importBdgest(db,csv);const rows=listAlbums(db,{limit:10}).items;assert.ok(rows.every(row=>row.cover_url===null));});
+test('accueil affiche jusqu’à seize acquisitions',()=>{const db=openDatabase(':memory:');for(let i=1;i<=20;i++)createAlbum(db,{series:'Série',title:'Album '+i});assert.equal(dashboard(db).recent.length,16);});
 test('migration et décision de couverture distinguent machine et utilisateur',()=>{
   const db=openDatabase(':memory:');
   const a=createAlbum(db,{isbn:'9782344059814',series:'Valhalla Bunker',title:'Sweet revenge'});

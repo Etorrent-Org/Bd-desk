@@ -13,7 +13,7 @@ test('le flux BDGest utilise une page dédiée et un champ natif visible',async(
   assert.match(js,/function openImport\(\)\{location\.href='\/import-bdgest\.html';\}/);
   assert.match(page,/id="csvFile"[^>]*type="file"/);
   assert.match(page,/class="file-native"/);
-  assert.match(page,/script type="module" src="\/import-bdgest-page\.js\?v=20260907-3"/);
+  assert.match(page,/script type="module" src="\/import-bdgest-page\.js\?v=20260907-4"/);
   assert.doesNotMatch(page,/file-input-native|input\.click\(\)|showOpenFilePicker/);
   assert.match(pageJs,/input\.addEventListener\('change'/);
   assert.match(pageJs,/api\/capabilities/);

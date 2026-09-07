@@ -165,7 +165,7 @@ form.addEventListener('submit',async event=>{
       return;
     }
     renderPreview({valid:true,rows:data.imported||0,isbnPresent:data.imported||0,duplicateIsbnGroups:0,ignoredRows:data.skipped||0});
-    setStatus('Import terminé : '+(Number(data.imported)||0)+' album(s) ajouté(s).','success');
+    setStatus('Import terminé : '+(Number(data.imported)||0)+' album(s) ajouté(s).'+(data.coverSearchStarted?' Recherche automatique des couvertures lancée.':''),'success');
     input.disabled=true;
     analyzeButton.disabled=true;
     importButton.disabled=true;

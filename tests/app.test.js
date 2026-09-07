@@ -92,9 +92,9 @@ test('l’import BDGest Premium fonctionne et reste idempotent par IdAlbum',()=>
   await activate(base,config);
   const csv='Table;IdAlbum;ISBN;Serie;Num;Titre\nALBUM;9001;9782203237766;Saga;1;Importé';
   let r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:csv});
-  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[]});
+  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[],coverSearchStarted:true});
   r=await fetch(base+'/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:csv});
-  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[]});
+  assert.equal(r.status,200); assert.deepEqual(await r.json(),{rows:1,imported:1,skipped:0,errors:[],coverSearchStarted:false});
   r=await fetch(base+'/api/albums?limit=500'); assert.equal((await r.json()).total,2);
 }));
 

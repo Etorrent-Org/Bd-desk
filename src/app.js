@@ -230,8 +230,8 @@ export function createBdDeskApp(config, opts={}){
         const result=importBdgest(db,csv);
         if(!result.rows)return json(res,400,{error:'Format BDGest introuvable : aucune ligne ALBUM'});
         await emit('collection.imported',result);
-        startCoverJob();
-        return json(res,200,result);
+        const coverSearchStarted=startCoverJob();
+        return json(res,200,{...result,coverSearchStarted});
       }
       if(p==='/api/keys'&&req.method==='GET'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT id,name,prefix,created_at,last_used_at,revoked_at FROM api_keys ORDER BY id DESC').all()); }
       if(p==='/api/keys'&&req.method==='POST'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); const {name}=normalizeApiKeyPayload(await jsonBody(req)), key=randomKey(); const r=db.prepare('INSERT INTO api_keys(name,key_hash,prefix) VALUES(?,?,?)').run(name,hash(key),key.slice(0,12)); return json(res,201,{id:Number(r.lastInsertRowid),key,name,warning:'Cette clé ne sera plus affichée.'}); }
