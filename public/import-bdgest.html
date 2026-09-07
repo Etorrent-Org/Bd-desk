@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101821">
+  <meta name="bd-desk-build" content="2026.09.07.1">
+  <title>BD Desk — Import BDGest</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7f7;
+      --panel: #ffffff;
+      --panel-soft: #f7fbfa;
+      --text: #14202a;
+      --muted: #66777c;
+      --line: #d9e4e2;
+      --accent: #237a61;
+      --accent-dark: #14533f;
+      --danger: #b42318;
+      --warning: #805b00;
+      --shadow: 0 18px 55px rgb(20 32 42 / 10%);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); }
+    a { color: var(--accent-dark); font-weight: 700; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 66px; padding: 12px clamp(18px, 5vw, 70px); background: #101821; color: #fff; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; }
+    .brand-mark { display: grid; place-items: center; width: 38px; height: 32px; border-radius: 7px; background: #fff; color: #101821; font-weight: 900; letter-spacing: -2px; }
+    .brand-name { font-size: 1.25rem; font-weight: 800; }
+    .topbar span { color: #b8c6cd; font-size: .9rem; }
+    main { width: min(860px, calc(100% - 32px)); margin: 42px auto 70px; }
+    .intro { margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: .78rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.7rem); letter-spacing: -.04em; line-height: 1.05; }
+    .intro p { max-width: 680px; color: var(--muted); line-height: 1.6; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: clamp(20px, 4vw, 34px); box-shadow: var(--shadow); }
+    .license-status { margin-bottom: 22px; padding: 12px 14px; border-radius: 11px; background: #eef8f3; color: var(--accent-dark); font-size: .92rem; font-weight: 700; }
+    .license-status[data-state="error"] { background: #fff1ef; color: var(--danger); }
+    .step { display: grid; gap: 10px; margin-top: 22px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-soft); }
+    .step h2 { margin: 0; font-size: 1.05rem; }
+    .step p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .file-zone { display: grid; gap: 10px; }
+    .file-label { font-size: .84rem; color: var(--muted); font-weight: 800; }
+    .file-native { display: block; width: 100%; min-height: 52px; padding: 10px; border: 1px solid #aebfbc; border-radius: 10px; background: #fff; color: var(--text); font: inherit; cursor: pointer; }
+    .file-native::file-selector-button { min-height: 34px; margin-right: 12px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); font-weight: 750; cursor: pointer; }
+    .file-native:focus-visible { outline: 3px solid #8bcbb8; outline-offset: 3px; }
+    .file-zone.drag-over { border-color: var(--accent); background: #eef8f3; }
+    output { min-height: 1.4em; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+    .help { color: var(--muted); font-size: .82rem; }
+    .preview { display: grid; gap: 5px; min-height: 74px; margin-top: 20px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft); }
+    .preview strong { font-size: .98rem; }
+    .preview span { color: var(--muted); line-height: 1.45; }
+    .preview .error { color: var(--danger); }
+    .status { display: block; min-height: 1.4em; margin-top: 12px; color: var(--muted); line-height: 1.45; }
+    .status[data-state="error"] { color: var(--danger); }
+    .status[data-state="success"] { color: var(--accent-dark); font-weight: 750; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    button { min-height: 42px; padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--text); font: inherit; font-weight: 750; cursor: pointer; }
+    button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #8bcbb8; outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    .footer-note { margin-top: 22px; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+    @media (max-width: 560px) {
+      .topbar { align-items: flex-start; flex-direction: column; gap: 4px; }
+      main { margin-top: 24px; }
+      .actions { justify-content: stretch; }
+      .actions > * { flex: 1 1 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark">BD</span>
+      <span class="brand-name">Desk</span>
+    </a>
+    <span>Import de collection BDGest</span>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="eyebrow">Collection · import massif</p>
+      <h1>Importer une collection BDGest</h1>
+      <p>Le fichier reste lu localement dans le navigateur. BD Desk vérifie d’abord le format et les compteurs, puis écrit uniquement après votre validation.</p>
+    </section>
+
+    <section class="card">
+      <div id="licenseStatus" class="license-status" role="status" aria-live="polite">Vérification de la licence…</div>
+
+      <form id="bdgestImportForm" novalidate>
+        <section id="csvPicker" class="step file-zone">
+          <h2>1. Choisir le fichier CSV</h2>
+          <p>Utilise directement le sélecteur natif du navigateur. Le fichier doit être un CSV BDGest de 5 Mo maximum.</p>
+          <label class="file-label" for="csvFile">Fichier CSV BDGest</label>
+          <input id="csvFile" class="file-native" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="csvFileHelp importStatus" required>
+          <output id="csvFileName" aria-live="polite">Aucun fichier choisi.</output>
+          <small id="csvFileHelp" class="help">Glisser-déposer accepté en complément. Aucun fichier personnel n’est conservé par cette page.</small>
+        </section>
+
+        <section class="step">
+          <h2>2. Contrôler le fichier</h2>
+          <p>L’analyse appelle le contrôle serveur BDGest sans écrire dans la collection.</p>
+          <div id="importPreview" class="preview" aria-live="polite">Aucun contenu à analyser.</div>
+          <small id="importStatus" class="status" role="status" aria-live="polite"></small>
+        </section>
+
+        <div class="actions">
+          <a href="/">Annuler</a>
+          <button id="resetImport" type="button" hidden>Recommencer</button>
+          <button id="analyzeImport" type="button" disabled>Analyser</button>
+          <button id="doImport" class="primary" type="submit" disabled>Importer</button>
+        </div>
+      </form>
+
+      <p class="footer-note">Un ré-import met à jour le même <code>IdAlbum</code> BDGest. Les ISBN dupliqués correspondant à plusieurs exemplaires restent distincts.</p>
+    </section>
+  </main>
+
+  <script type="module" src="/import-bdgest-page.js?v=20260907-1"></script>
+</body>
+</html>
