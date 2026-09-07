@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'src/**'
+      - 'public/cover-sources.js'
       - '.github/workflows/live-cover-recovery.yml'
 
 permissions:
@@ -13,13 +15,39 @@ permissions:
 jobs:
   recover:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       PREVIEW_URL: https://tatoune.alwaysdata.net
     steps:
-      - name: Wait for the deployed resolver
+      - name: Wait for the new resolver deployment
+        run: |
+          READY=0
+          for i in $(seq 1 36); do
+            CODE="$(curl -fsS --retry 2 --retry-delay 1 "$PREVIEW_URL/cover-sources.js?build=${GITHUB_SHA}" || true)"
+            if printf '%s' "$CODE" | grep -F 'media-participations' >/dev/null; then
+              READY=1
+              echo 'New real-cover resolver is live.'
+              break
+            fi
+            echo "Waiting for AlwaysData deployment ($i/36)..."
+            sleep 10
+          done
+          test "$READY" = 1
+
+      - name: Start full real-cover resolution
         run: |
           for i in $(seq 1 12); do
+            RESPONSE="$(curl -sS --retry 2 --retry-delay 1 --request POST "$PREVIEW_URL/api/covers/resolve" || true)"
+            echo "$RESPONSE"
+            if printf '%s' "$RESPONSE" | grep -Eq '"(started|status)"'; then
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Wait for background resolution
+        run: |
+          for i in $(seq 1 72); do
             STATUS="$(curl -fsS --retry 3 --retry-delay 2 "$PREVIEW_URL/api/covers/status")"
             echo "$STATUS"
             STATE="$(node -e "const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.status||''))" "$STATUS")"
@@ -30,49 +58,23 @@ jobs:
       - name: Snapshot unresolved real covers
         run: |
           curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-before.json
-          node <<'NODE'
-          const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/albums-before.json','utf8'));
-          const missing=(data.items||[]).filter(a=>!String(a.cover_url||'').trim());
-          const weak=(data.items||[]).filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);
-          console.log('MISSING_BEFORE='+missing.length);
-          console.log('WEAK_BEFORE='+weak.length);
-          console.log('MISSING_BEFORE_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));
-          fs.writeFileSync('/tmp/missing-ids.txt',missing.map(a=>a.id).join('\n'));
-          NODE
+          node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-before.json','utf8'));const items=d.items||[];const missing=items.filter(a=>!String(a.cover_url||'').trim());const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);console.log('MISSING_BEFORE='+missing.length);console.log('WEAK_BEFORE='+weak.length);console.log('MISSING_BEFORE_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));fs.writeFileSync('/tmp/missing-ids.txt',missing.map(a=>a.id).join('\n'));"
 
       - name: Force two recovery passes for missing covers
         run: |
           for pass in 1 2; do
             echo "Recovery pass $pass"
             if [ -s /tmp/missing-ids.txt ]; then
-              cat /tmp/missing-ids.txt | xargs -r -n1 -P4 -I{} sh -c 'curl -fsS --retry 2 --retry-delay 1 --request POST "$0/api/albums/$1/cover/resolve" >/dev/null || true' "$PREVIEW_URL" {}
+              xargs -r -P4 -I{} sh -c 'curl -fsS --retry 2 --retry-delay 1 --request POST "$0/api/albums/$1/cover/resolve" >/dev/null || true' "$PREVIEW_URL" {} < /tmp/missing-ids.txt
             fi
-            sleep 10
+            sleep 8
             curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-pass.json
-            node <<'NODE'
-            const fs=require('fs');
-            const data=JSON.parse(fs.readFileSync('/tmp/albums-pass.json','utf8'));
-            const missing=(data.items||[]).filter(a=>!String(a.cover_url||'').trim());
-            fs.writeFileSync('/tmp/missing-ids.txt',missing.map(a=>a.id).join('\n'));
-            console.log('MISSING_AFTER_PASS='+missing.length);
-            NODE
+            node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-pass.json','utf8'));const missing=(d.items||[]).filter(a=>!String(a.cover_url||'').trim());fs.writeFileSync('/tmp/missing-ids.txt',missing.map(a=>a.id).join('\n'));console.log('MISSING_AFTER_PASS='+missing.length);"
           done
 
       - name: Final cover audit
+        if: always()
         run: |
           curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-final.json
           curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/covers/status" > /tmp/status-final.json
-          node <<'NODE'
-          const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/albums-final.json','utf8'));
-          const status=JSON.parse(fs.readFileSync('/tmp/status-final.json','utf8'));
-          const items=data.items||[];
-          const missing=items.filter(a=>!String(a.cover_url||'').trim());
-          const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);
-          console.log('FINAL_STATUS='+JSON.stringify(status));
-          console.log('MISSING_FINAL='+missing.length);
-          console.log('WEAK_FINAL='+weak.length);
-          console.log('MISSING_FINAL_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));
-          console.log('WEAK_FINAL_JSON='+JSON.stringify(weak.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,width:a.cover_width,height:a.cover_height,source:a.cover_source}))));
-          NODE
+          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('/tmp/albums-final.json','utf8'));const status=JSON.parse(fs.readFileSync('/tmp/status-final.json','utf8'));const items=data.items||[];const missing=items.filter(a=>!String(a.cover_url||'').trim());const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);console.log('FINAL_STATUS='+JSON.stringify(status));console.log('MISSING_FINAL='+missing.length);console.log('WEAK_FINAL='+weak.length);console.log('MISSING_FINAL_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));console.log('WEAK_FINAL_JSON='+JSON.stringify(weak.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,width:a.cover_width,height:a.cover_height,source:a.cover_source}))));"
