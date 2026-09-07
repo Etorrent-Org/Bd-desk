@@ -45,8 +45,7 @@
       <div class="warning">Ouvre cette URL dans un onglet Brave normal, pas depuis l’application PWA installée. Si le champ natif ne réagit pas ici non plus, le problème est extérieur à BD Desk.</div>
 
       <div class="environment" aria-label="Informations de diagnostic">
-        <strong>Contexte détecté</strong>
-        <p id="environment">Lecture du contexte du navigateur…</p>
+        Cette page ne charge aucun script BD Desk et n’enregistre aucun service worker. Le champ ci-dessus est le contrôle natif du navigateur.
       </div>
 
       <div class="actions">
@@ -54,25 +53,5 @@
       </div>
     </section>
   </main>
-  <script>
-    const input = document.getElementById('csvFile');
-    const state = document.getElementById('fileState');
-    const environment = document.getElementById('environment');
-
-    input.addEventListener('change', () => {
-      const file = input.files && input.files[0];
-      state.textContent = file
-        ? 'Résultat : fichier sélectionné — ' + file.name
-        : 'Résultat : aucun fichier sélectionné.';
-    });
-
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const controlled = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
-    environment.innerHTML = [
-      'URL : <code>' + window.location.href.replace(/</g, '&lt;') + '</code>',
-      'PWA installée : <strong>' + (standalone ? 'oui' : 'non') + '</strong>',
-      'Service worker actif sur cet onglet : <strong>' + (controlled ? 'oui' : 'non') + '</strong>'
-    ].join('<br>');
-  </script>
 </body>
 </html>
