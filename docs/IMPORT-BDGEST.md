@@ -8,7 +8,9 @@ Il s'agit bien d'un **import BDGest vers BD Desk**, et non d'une fonction d'expo
 
 ## Parcours utilisateur
 
-La fenêtre d'import utilise un seul contrôle **Choisir un fichier** visible, relié directement par un label HTML au champ fichier natif. Le navigateur ouvre son sélecteur système ; après l'événement `change`, le fichier est lu localement avec `File.text()` ou `FileReader`. Le glisser-déposer est accepté sur la même zone comme comportement complémentaire.
+Depuis Accueil ou Ma collection, le bouton Importer ouvre `/import-bdgest.html`. La page est autonome, compatible avec un onglet classique comme avec la PWA, et conserve un lien direct de retour à la collection.
+
+L'import se déroule sur la page dédiée `/import-bdgest.html`, hors de la modale de l'application. Le contrôle **Choisir un fichier** est le champ fichier natif visible du navigateur : aucune fonction JavaScript ne déclenche ou ne masque le sélecteur. Après l'événement `change`, le fichier est lu localement avec `File.text()` ou `FileReader`. Le glisser-déposer est accepté sur la même zone comme comportement complémentaire.
 
 Dans tous les cas, le bouton **Analyser** doit être utilisé avant **Importer**. L'analyse appelle `POST /api/import/bdgest/preview`, ne modifie pas la base et retourne uniquement des compteurs de contrôle. Si cette route n'est pas disponible, l'import reste bloqué : le déploiement est incomplet et doit être corrigé avant de transmettre ou d'écrire le fichier. L'import réel appelle ensuite `POST /api/import/bdgest` avec le contenu explicitement validé.
 
