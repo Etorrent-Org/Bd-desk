@@ -125,36 +125,6 @@ jobs:
           test -n "$WEBHOOK_SECRET" || { echo '::error::WEBHOOK_SIGNING_SECRET is unavailable to this workflow.'; exit 1; }
           printf '%s' "$WEBHOOK_SECRET" | base64 -w 0 | sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "base64 -d > /home/tatoune/data/bd-desk-webhook-secret && chmod 600 /home/tatoune/data/bd-desk-webhook-secret"
 
-      - name: Materialize trusted cover assets
-        run: |
-          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
-          COVER_DIR="$(mktemp -d)"
-          COVER_LIST="$(mktemp)"
-          SWEET_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
-          SAGA_THREE_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782870970430'); if(!a) throw new Error('Troisième album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
-          node -e 'const x=JSON.parse(process.argv[1]); for(const a of (x.items||[])) if(a.id&&a.cover_origin==="machine"&&a.cover_url) process.stdout.write(`${a.id}\t${a.cover_url}\n`)' "$ALBUMS" > "$COVER_LIST"
-          while IFS="$(printf '\t')" read -r id url; do
-            [ -z "$id" ] && continue
-            case "$url" in
-              https://openapi.bnf.fr/*|https://covers.openlibrary.org/*|https://books.google.com/*|https://books.googleusercontent.com/*|https://images.hachette-livre.fr/*|https://www.images.hachette-livre.fr/*) ;;
-              *) continue ;;
-            esac
-            curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors "$url" -o "$COVER_DIR/$id.jpeg" || echo "::warning::Unable to materialize cover for album $id"
-            if [ -s "$COVER_DIR/$id.jpeg" ]; then
-              {
-                printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1867"><image width="1400" height="1867" preserveAspectRatio="none" href="data:image/jpeg;base64,'
-                base64 -w 0 "$COVER_DIR/$id.jpeg"
-                printf '%s' '"/></svg>'
-              } > "$COVER_DIR/$id.svg"
-              rm "$COVER_DIR/$id.jpeg"
-            fi
-          done < "$COVER_LIST"
-          test -s "$COVER_DIR/$SWEET_ID.svg"
-          test -s "$COVER_DIR/$SAGA_THREE_ID.svg"
-          echo "Materialized $(find "$COVER_DIR" -type f -name '*.svg' | wc -l) trusted cover asset(s)."
-          SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e ssh "$ALWAYSDATA_USER@$ALWAYSDATA_HOST" "mkdir -p '$ALWAYSDATA_TARGET/public/covers'"
-          SSHPASS="${{ secrets.ALWAYSDATA_PASSWORD || vars.ALWAYSDATA_PASSWORD }}" sshpass -e rsync -az --delete "$COVER_DIR/" "$ALWAYSDATA_USER@$ALWAYSDATA_HOST:$ALWAYSDATA_TARGET/public/covers/"
-
       - name: Discover and restart alwaysdata HTTP site
         if: env.ALWAYSDATA_API_KEY != ''
         run: |
@@ -213,18 +183,6 @@ jobs:
             "https://api.alwaysdata.com/v1/site/${SITE_ID}/restart/"
           echo
 
-      - name: Resolve covers for existing preview albums
-        run: |
-          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
-          IDS="$(node -e "const x=JSON.parse(process.argv[1]); for(const a of (x.items||[])) if(a.id&&a.isbn&&a.cover_origin!=='user') console.log(a.id)" "$ALBUMS")"
-          while IFS= read -r id; do
-            [ -z "$id" ] && continue
-            curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
-              --request POST "$PREVIEW_URL/api/albums/$id/cover/resolve" >/dev/null
-          done <<EOF
-          $IDS
-          EOF
-
       - name: Preview health check
         run: |
           curl -fsS --retry 15 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/health"
@@ -245,6 +203,15 @@ jobs:
           node -e "const x=JSON.parse(process.argv[1]); if(x.plan!=='premium') throw new Error('Preview license was not activated');" "$LICENSE_RESPONSE"
           echo 'Preview Premium license activated without exposing the key.'
 
+      - name: Start cover search for existing preview albums
+        if: env.BD_DESK_EDITION != 'free'
+        run: |
+          RESPONSE="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
+            --request POST "$PREVIEW_URL/api/covers/resolve")"
+          echo "$RESPONSE"
+          node -e "const x=JSON.parse(process.argv[1]); if(!['idle','running','completed'].includes(x.status)&&x.started!==true) throw new Error('Cover search did not start');" "$RESPONSE"
+          echo 'Existing preview albums queued for verified cover search.'
+
       - name: Verify live BDGest preview route
         run: |
           HTTP_CODE="$(curl -sS --retry 15 --retry-delay 2 --retry-all-errors \
@@ -257,33 +224,20 @@ jobs:
           node -e "const status=process.argv[1], x=JSON.parse(process.argv[2]); if(status!=='200'||x.valid!==true||x.rows!==4) throw new Error('Live BDGest preview route is not the deployed server route');" "$HTTP_CODE" "$(cat /tmp/bd-desk-bdgest-preview.json)"
           echo 'Live BDGest preview route verified without writing the preview database.'
 
-      - name: Verify live trusted cover asset
+      - name: Verify live same-origin cover proxy
         run: |
           ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
           ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
+          curl -fsS --retry 5 --retry-delay 2 --retry-all-errors \
+            --request POST "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/resolve" >/tmp/bd-desk-cover-resolution.json
           curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
             -D /tmp/bd-desk-cover-headers \
-            "$PREVIEW_URL/covers/$ALBUM_ID.svg?v=${GITHUB_SHA}" \
+            "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/image?v=${GITHUB_SHA}" \
             -o /tmp/bd-desk-cover-image
           test -s /tmp/bd-desk-cover-image
-          grep -i '^content-type: image/svg+xml' /tmp/bd-desk-cover-headers >/dev/null
-          file -b --mime-type /tmp/bd-desk-cover-image | grep -F 'image/svg+xml' >/dev/null
-          echo "Live trusted cover asset verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
-
-      - name: Verify same-origin cover proxy when process is restarted
-        run: |
-          ALBUMS="$(curl -fsS --retry 5 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=200")"
-          ALBUM_ID="$(node -e "const x=JSON.parse(process.argv[1]); const a=(x.items||[]).find(v=>v.isbn==='9782344059814'); if(!a) throw new Error('Sweet Revenge album missing'); process.stdout.write(String(a.id))" "$ALBUMS")"
-          if curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors \
-            -D /tmp/bd-desk-cover-proxy-headers \
-            "$PREVIEW_URL/api/albums/$ALBUM_ID/cover/image?v=${GITHUB_SHA}" \
-            -o /tmp/bd-desk-cover-proxy-image; then
-            grep -i '^content-type: image/' /tmp/bd-desk-cover-proxy-headers >/dev/null
-            test -s /tmp/bd-desk-cover-proxy-image
-            echo "Same-origin cover proxy verified for Sweet Revenge."
-          else
-            echo '::warning::Same-origin cover proxy is not active yet; static trusted cover asset is the live fallback.'
-          fi
+          grep -i '^content-type: image/' /tmp/bd-desk-cover-headers >/dev/null
+          file -b --mime-type /tmp/bd-desk-cover-image | grep -F 'image/' >/dev/null
+          echo "Live same-origin cover proxy verified for Sweet Revenge: $(wc -c < /tmp/bd-desk-cover-image) bytes."
 
       - name: Verify live experience V3 and cover resolver
         run: |

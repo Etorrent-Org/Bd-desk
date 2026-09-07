@@ -13,6 +13,7 @@ L'édition est exposée par `edition` dans `/license` et `/capabilities` : `free
 | POST | `/license/activate` | activer une licence signée |
 | GET | `/capabilities` | matrice des capacités de l'édition et du plan |
 | GET | `/dashboard` | KPI d'accueil |
+| GET | `/covers/status` | état des couvertures et progression de la recherche |
 | GET | `/stats` | statistiques essentielles |
 | GET | `/series` | synthèse des séries et trous détectés |
 | GET | `/authors` | auteurs/dessinateurs |
@@ -23,6 +24,7 @@ L'édition est exposée par `edition` dans `/license` et `/capabilities` : `free
 | GET/POST | `/albums` | lister/créer |
 | GET/PATCH/DELETE | `/albums/:id` | fiche album |
 | POST | `/albums/:id/cover/resolve` | résoudre une couverture avec preuve ISBN/EAN, sans écraser une couverture utilisateur |
+| GET | `/albums/:id/cover/image` | servir en same-origin une couverture machine vérifiée |
 | GET | `/discover?isbn=…` | recherche externe manuelle avec candidats, scores et résolution retenue |
 | GET | `/export/collection.json` | export complet gratuit |
 
@@ -35,6 +37,7 @@ L'édition est exposée par `edition` dans `/license` et `/capabilities` : `free
 | GET | `/stats/advanced` | `advanced_stats` |
 | GET | `/editions/anomalies` | `advanced_stats` |
 | POST | `/metadata/:id/enrich` | `metadata_auto`, champs éditoriaux vides et provenance |
+| POST | `/covers/resolve` | `metadata_auto` — lancer la recherche multi-source des couvertures sans couverture |
 | POST | `/import/bdgest` | `bulk_import` — import du CSV BDGest dans BD Desk, jamais export |
 | GET/POST | `/keys` | `api` |
 | DELETE | `/keys/:id` | `api` |

@@ -1,6 +1,6 @@
 import test from 'node:test'; import assert from 'node:assert/strict'; import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
-import {openDatabase,importBdgest,listAlbums,createAlbum,updateAlbum,deleteAlbum,seriesSummary,dashboard,basicStats,stats,peopleSummary,publishersSummary,seedIfEmpty,editionAnomalies,exportCollection,getAlbum,migrate,persistCoverDecision,applyMetadataResolution} from '../src/db.js';
+import {openDatabase,importBdgest,listAlbums,createAlbum,updateAlbum,deleteAlbum,seriesSummary,dashboard,basicStats,stats,peopleSummary,publishersSummary,seedIfEmpty,editionAnomalies,exportCollection,getAlbum,migrate,persistCoverDecision,applyMetadataResolution,coverResolutionStatus,listPendingCoverAlbums} from '../src/db.js';
 const csv=fs.readFileSync(new URL('./fixtures/bdgest-sample.csv',import.meta.url),'utf8');
 test('import réel BDGest, idempotence et KPI',()=>{const db=openDatabase(':memory:');const r=importBdgest(db,csv);assert.deepEqual(r,{rows:4,imported:4,skipped:0,errors:[]});const again=importBdgest(db,csv);assert.equal(again.imported,4);assert.equal(db.prepare('SELECT COUNT(*) c FROM albums').get().c,4);const d=dashboard(db);assert.equal(d.albums,4);assert.equal(d.series,2);assert.equal(d.eo,2);assert.equal(d.read,2);assert.equal(listAlbums(db,{search:'Saga'}).total>0,true);assert.equal(stats(db).albums,4);assert.equal(basicStats(db).albums,4);assert.equal(editionAnomalies(db).duplicateIsbns.some(x=>x.isbn==='9782203237766'),true);assert.equal(exportCollection(db).length,4);assert.equal(peopleSummary(db).length>=6,true);assert.equal(publishersSummary(db).length===3,true)});
 test('CRUD manuel',()=>{const db=openDatabase(':memory:');const a=createAlbum(db,{isbn:'9782344059814',series:'Test',number:'1',title:'Test 1',read:false});assert.equal(a.series,'Test');assert.equal(updateAlbum(db,a.id,{read:true,followed:true,title:'Renommé'}).read,1);assert.equal(getAlbum(db,a.id).followed,1);assert.equal(updateAlbum(db,999,{title:'Fantôme'}),null);assert.equal(db.prepare("SELECT COUNT(*) c FROM history WHERE event='album_updated'").get().c,1);assert.equal(deleteAlbum(db,a.id),true);assert.equal(deleteAlbum(db,a.id),false)});
@@ -65,4 +65,15 @@ test('effacer une couverture manuelle réouvre la résolution machine',()=>{
   const a=createAlbum(db,{isbn:'9782344059814',series:'S',title:'T',coverUrl:'https://example.test/user.jpg'});
   assert.equal(updateAlbum(db,a.id,{coverUrl:''}).cover_origin,null);
   assert.equal(persistCoverDecision(db,a.id,{url:'https://www.images.hachette-livre.fr/new.jpeg',source:'hachette',confidence:.9}).updated,true);
+});
+test('le suivi des couvertures distingue les albums à rechercher, couverts et sans ISBN',()=>{
+  const db=openDatabase(':memory:');
+  const pending=createAlbum(db,{isbn:'9782203237766',series:'Saga',title:'À rechercher'});
+  createAlbum(db,{series:'Sans ISBN',title:'Identité éditoriale'});
+  const covered=createAlbum(db,{isbn:'9782344059814',series:'Couverte',title:'Déjà couverte',coverUrl:'https://example.test/user.jpg'});
+  const checked=createAlbum(db,{isbn:'9782203237766',series:'Introuvable',title:'Déjà contrôlée'});
+  db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('no-trusted-cover',checked.id);
+  assert.deepEqual(coverResolutionStatus(db),{total:4,withCover:1,missing:3,pending:1,withoutIsbn:1,checkedWithoutCover:1,coveragePercent:25});
+  assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[pending.id]);
+  assert.equal(getAlbum(db,covered.id).cover_origin,'user');
 });

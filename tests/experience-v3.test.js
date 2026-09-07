@@ -18,13 +18,14 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   const html=await read('public/index.html');
   const sw=await read('public/sw.js');
   const app=await read('public/app.js');
-  assert.match(html,/bd-desk-build" content="2026\.09\.07\.2"/);
-  assert.match(app,/sw\.js\?v=20260907-2/);
+  assert.match(html,/bd-desk-build" content="2026\.09\.07\.3"/);
+  assert.match(app,/sw\.js\?v=20260907-3/);
   assert.match(app,/updateViaCache:'none'/);
-  assert.match(app,/\/covers\/\$\{encodeURIComponent\(id\)\}\.svg/);
-  assert.match(sw,/bd-desk-v44/);
-  assert.match(sw,/import-bdgest\.js\?v=20260907-2/);
-  assert.match(sw,/app\.js\?v=20260907-2/);
+  assert.match(app,/\/api\/albums\/\$\{encodeURIComponent\(id\)\}\/cover\/image/);
+  assert.match(app,/\/api\/covers\/resolve/);
+  assert.match(sw,/bd-desk-v45/);
+  assert.match(sw,/import-bdgest\.js\?v=20260907-3/);
+  assert.match(sw,/app\.js\?v=20260907-3/);
 });
 
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
@@ -47,6 +48,7 @@ test('le client de couverture utilise une résolution API vérifiée et garde la
   const js=await read('public/cover-sources.js');
   assert.match(js,/openapi\.bnf\.fr\/couverture/);
   assert.match(js,/\/api\/albums\/.*cover\/resolve/);
+  assert.match(js,/\/api\/albums\/.*cover\/image/);
   assert.match(js,/MAX_CONCURRENCY=2/);
   assert.match(js,/method:'POST'/);
   assert.doesNotMatch(js,/covers\.openlibrary\.org/);

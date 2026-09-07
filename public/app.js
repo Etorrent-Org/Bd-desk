@@ -15,7 +15,7 @@ function routeFromHash(hash=location.hash){const candidate=String(hash||'#home')
 function go(r){const next=routeNames.has(r)?r:'home';if(next!==state.route&&(next==='collection'||next==='albums'||next==='wishlist'))state.collection.page=0;state.route=next;history.replaceState(null,'',`#${next}`);$('.sidebar').classList.remove('open');nav();void render()}
 function escapeHtml(s=''){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function trustedCoverUrl(src){try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='covers.openlibrary.org'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')}catch{return false}}
-function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin==='machine'||a.coverOrigin==='machine'||trustedCoverUrl(src);return src&&machine&&id?`/covers/${encodeURIComponent(id)}.svg`:src}
+function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin!=='user'&&a.coverOrigin!=='user'&&(a.cover_origin==='machine'||a.coverOrigin==='machine'||trustedCoverUrl(src));return src&&machine&&id?`/api/albums/${encodeURIComponent(id)}/cover/image`:src}
 function img(a,cls=''){const src=coverSrc(a);return src?`<img class="cover-image ${cls}" src="${escapeHtml(src)}" loading="lazy" alt="Couverture ${escapeHtml(a.title||a.series||'album')}">`:`<div class="placeholder">${escapeHtml(a.series||a.title||'BD')}</div>`}
 function coverCard(a){return `<article class="album-card" data-album="${a.id}"><div class="cover-wrap">${img(a)}</div><h3>${escapeHtml(a.series||a.title)}</h3><p class="series">${escapeHtml(a.number?`Tome ${a.number}`:a.title)}</p><p>${escapeHtml(a.title===a.series?'':a.title||'')}</p></article>`}
 function header(title,sub='',action=''){return `<div class="page-head"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${action}</div>`}
@@ -24,9 +24,24 @@ function premium(feature){return state.license.plan==='premium'&&(!feature||stat
 
 async function home(){
   const d=await api('/api/dashboard');
+  const covers=d.coverStats||{total:d.albums,withCover:0,missing:d.albums,pending:0,withoutIsbn:0,checkedWithoutCover:0,coveragePercent:0};
+  const job=d.coverJob||{status:'idle',processed:0,resolved:0};
+  const coverMessage=job.status==='running'
+    ? `Recherche en cours : ${Number(job.processed)||0} album(s) traité(s), ${Number(job.resolved)||0} couverture(s) trouvée(s).`
+    : covers.pending
+      ? `${covers.pending} album(s) avec ISBN attendent une recherche multi-source vérifiée.`
+      : covers.missing
+        ? `${covers.withoutIsbn||0} album(s) n’ont pas d’ISBN exploitable ; un fallback éditorial reste affiché.`
+        : 'Toutes les couvertures disponibles ont été vérifiées.';
+  const coverAction=premium('metadata_auto')&&(job.status==='running'||covers.pending)
+    ? `<button class="btn primary" id="resolveCoversBtn" ${job.status==='running'?'disabled':''}>${job.status==='running'?'Recherche en cours…':'Lancer la recherche'}</button>`
+    : state.edition==='licensed'&&!premium('metadata_auto')&&covers.pending
+      ? '<button class="btn" data-route="settings">Activer Premium</button>'
+      : '';
   return `${header('En ce moment','Votre collection, en un coup d’œil.',`<button class="btn" data-route="settings">⚙ Personnaliser</button>`)}
   <div class="kpis"><div class="kpi"><small>Ma collection</small><strong>${d.albums}</strong><div class="delta">albums</div></div><div class="kpi"><small>Séries suivies</small><strong>${d.series}</strong><div class="delta">en cours</div></div><div class="kpi"><small>Albums manquants</small><strong>${d.missing}</strong><div class="delta warn">à trouver</div></div><div class="kpi"><small>Wishlist</small><strong>${d.wishlist}</strong><div class="delta">albums</div></div></div>
   <section class="section"><div class="section-title"><h2>Dernières acquisitions</h2><button data-more="collection">Voir tout</button></div><div class="covers">${d.recent.map(coverCard).join('')}</div></section>
+  <section class="section cover-status-panel"><div class="section-title"><div><h2>Couvertures</h2><p>${escapeHtml(coverMessage)}</p></div><span class="cover-coverage">${Number(covers.coveragePercent)||0}% couvert</span></div><div class="cover-status-row"><span>${Number(covers.withCover)||0} couverture(s) vérifiée(s) · ${Number(covers.missing)||0} à traiter</span>${coverAction}</div></section>
   <section class="section"><div class="section-title"><h2>Reprendre ma lecture</h2></div><div class="resume-grid">${d.resume.map(a=>`<div class="resume" data-album="${a.id}">${img(a)}<div><strong>${escapeHtml(a.series)}</strong><small>${escapeHtml(a.number?`Tome ${a.number}`:a.title)}</small><div class="progress"><i style="width:${d.readPercent}%"></i></div><small>${d.readPercent}% de la collection lue</small></div></div>`).join('')}</div></section>
   <section class="section"><div class="quick-actions"><button id="scanBtn"><span>▥</span><b>Scanner</b><small>ISBN / EAN</small></button><button data-route="discover"><span>⌕</span><b>Rechercher</b><small>multi-source</small></button><button id="homeAdd"><span>＋</span><b>Ajouter</b><small>manuellement</small></button><button id="homeImport"><span>⇩</span><b>Importer</b><small>${premium('bulk_import')?'BDGest':'Premium'}</small></button><button data-route="collection"><span>≡</span><b>Filtres</b><small>collection</small></button></div></section>
   <section class="section premium-panel"><div class="section-title"><h2>${premium()?'Premium actif':state.edition==='free'?'Édition Free':'Passez en Premium'}</h2></div><p style="margin:0;color:var(--muted)">${state.edition==='free'?'Collection et fonctions essentielles disponibles. La version licenciée ajoute l’import BDGest, l’enrichissement et les intégrations.':'Import massif, enrichissement automatique, statistiques avancées, API, webhooks et MCP pour n8n, Notion, Make et vos agents IA.'}</p></section>`
@@ -71,12 +86,33 @@ function wire(){
   const rf=$('#readFilter');if(rf)rf.onchange=e=>{state.collection.read=e.target.value;state.collection.page=0;void render()};
   $$('[data-collection-page]').forEach(b=>b.onclick=()=>{if(b.disabled)return;state.collection.page=Math.max(0,Number(b.dataset.collectionPage)||0);void render()});
   const ib=$('#importBtn');if(ib)ib.onclick=openImport;const hi=$('#homeImport');if(hi)hi.onclick=openImport;const ha=$('#homeAdd');if(ha)ha.onclick=openAdd;const sb=$('#scanBtn');if(sb)sb.onclick=()=>openScanner();
+  const resolveCoversButton=$('#resolveCoversBtn');if(resolveCoversButton)resolveCoversButton.onclick=resolveCovers;
   const eb=$('#exportBtn');if(eb)eb.onclick=()=>{location.href='/api/export/collection.json'};
   $$('[data-theme-choice]').forEach(b=>b.onclick=()=>setTheme(b.dataset.themeChoice));const lb=$('#licenseBtn');if(lb)lb.onclick=activateLicense;const kb=$('#apiKeyBtn');if(kb)kb.onclick=createApiKey;const wb=$('#webhookBtn');if(wb)wb.onclick=openWebhook;
   $$('[data-revoke-key]').forEach(b=>b.onclick=async()=>{await api('/api/keys/'+b.dataset.revokeKey,{method:'DELETE'});toast('Clé révoquée');render()});
   $$('[data-delete-webhook]').forEach(b=>b.onclick=async()=>{await api('/api/webhooks/'+b.dataset.deleteWebhook,{method:'DELETE'});toast('Webhook supprimé');render()});
   const db=$('#discoverBtn');if(db)db.onclick=runDiscover;const ds=$('#discoverScan');if(ds)ds.onclick=()=>openScanner(v=>{$('#discoverIsbn').value=v;runDiscover()});
   const loan=$('#loanBtn');if(loan)loan.onclick=openLoan;$$('[data-return-loan]').forEach(b=>b.onclick=async()=>{try{await api(`/api/loans/${b.dataset.returnLoan}/return`,{method:'PATCH'});toast('Album rendu');void render()}catch(e){toast(e.message)}});
+}
+async function resolveCovers(){
+  const button=$('#resolveCoversBtn');
+  if(button)button.disabled=true;
+  try{
+    const result=await api('/api/covers/resolve',{method:'POST'});
+    if(result.started){toast('Recherche des couvertures lancée');void render();pollCoverJob();}
+    else{toast('Aucune couverture en attente');void render()}
+  }catch(error){if(button)button.disabled=false;toast(error.status===402?'La recherche de couvertures est Premium':error.message)}
+}
+function pollCoverJob(){
+  const poll=async()=>{
+    try{
+      const status=await api('/api/covers/status');
+      if(status.status==='running'){if(state.route==='home')void render();setTimeout(poll,2500);return}
+      if(state.route==='home')void render();
+      if(status.status==='completed'&&status.processed)toast(`${status.resolved||0} couverture(s) trouvée(s)`);
+    }catch{}
+  };
+  void poll();
 }
 async function openAlbum(id){const a=await api('/api/albums/'+id);const d=$('#drawer');d.dataset.albumId=String(id);d.dataset.richRenderedId='';d.innerHTML=`<div class="drawer-head"><button class="close">×</button><div class="detail-hero"><div class="detail-cover">${img(a)}</div><div><small>${escapeHtml(a.series)}</small><h2>${escapeHtml(a.title)}</h2><p>${a.number?`Tome ${escapeHtml(a.number)}`:'Album'} · ${escapeHtml(a.publisher||'')}</p></div></div></div><div class="detail-body"><div class="toolbar"><button class="btn success" id="readBtn">${a.read?'✓ Lu':'Marquer lu'}</button><button class="btn" id="wishBtn">${a.wishlist?'♥ Wishlist':'♡ Wishlist'}</button><button class="btn" id="enrichBtn">✦ Enrichir</button></div><dl><div><dt>ISBN</dt><dd>${escapeHtml(a.isbn||'—')}</dd></div><div><dt>Éditeur</dt><dd>${escapeHtml(a.publisher||'—')}</dd></div><div><dt>Scénario</dt><dd>${escapeHtml(a.writer||'—')}</dd></div><div><dt>Dessin</dt><dd>${escapeHtml(a.artist||'—')}</dd></div><div><dt>Édition originale</dt><dd>${a.first_edition?'Oui':'Non / inconnue'}</dd></div><div><dt>Prix d’achat</dt><dd>${a.purchase_price!=null?euro(a.purchase_price):'—'}</dd></div></dl>${a.description?`<h3>Résumé</h3><p>${escapeHtml(a.description)}</p>`:''}</div>`;d.classList.remove('hidden');wire();$('.close').onclick=()=>d.classList.add('hidden');$('#readBtn').onclick=async()=>{try{await api('/api/albums/'+id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({read:!a.read})});d.classList.add('hidden');void render()}catch(e){toast(e.message)}};$('#wishBtn').onclick=async()=>{try{await api('/api/albums/'+id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({wishlist:!a.wishlist})});d.classList.add('hidden');void render()}catch(e){toast(e.message)}};$('#enrichBtn').onclick=async()=>{try{toast('Enrichissement…');await api(`/api/metadata/${id}/enrich`,{method:'POST'});toast('Fiche enrichie');d.classList.add('hidden');void render()}catch(e){if(e.status===402){d.classList.add('hidden');go('settings');toast('Fonction Premium')}else toast(e.message)}}}
 function modal(html){const m=$('#modal');m.innerHTML=`<div class="modal-card">${html}</div>`;m.classList.remove('hidden');m.onclick=e=>{if(e.target===m)m.classList.add('hidden')}}
@@ -142,4 +178,4 @@ function openWebhook(){modal(`<h2>Ajouter un webhook</h2><form id="webhookForm">
 function setTheme(t){state.theme=t;localStorage.setItem('bd-theme',t);document.body.dataset.theme=t;render()}
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-route],#themeBtn,#menuBtn');if(!button)return;if(button.id==='menuBtn'){e.preventDefault();$('.sidebar').classList.toggle('open');return}if(button.id==='themeBtn'){e.preventDefault();go('settings');return}if(button.dataset.route==='add'){openAdd();return}e.preventDefault();go(button.dataset.route)});
 $('#fab').onclick=openAdd;$('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){state.search=e.target.value;go('collection')}};document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement?.tagName!=='INPUT'){e.preventDefault();$('#globalSearch').focus()}});window.addEventListener('hashchange',()=>{state.route=routeFromHash();nav();void render()});
-(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260907-2',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
+(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260907-3',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();

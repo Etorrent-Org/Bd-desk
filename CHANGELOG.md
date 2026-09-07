@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- **Accueil et couvertures** : l’accueil affiche jusqu’à huit acquisitions récentes, suit la couverture de la collection et propose la recherche Premium par lots. Les couvertures machine sont désormais livrées par un proxy same-origin vérifié ; le traitement est lancé après import BDGest et au démarrage d’une instance licenciée.
+
 - **Sélecteur BDGest repris** : remplacement du rendu CSS direct du champ `type=file` par un bouton visible relié par `label[for]` au champ natif, avec conservation de l'accessibilité clavier, du changement de fichier et du glisser-déposer.
 
 - **Import BDGest réécrit de bout en bout** : champ de fichier natif visible, lecture locale par `File.text()`/`FileReader`, glisser-déposer et aperçu non destructif côté serveur avant import. Aucun import n'est autorisé si la route d'aperçu serveur n'est pas disponible. Le flux reste réservé à l'édition licenciée.

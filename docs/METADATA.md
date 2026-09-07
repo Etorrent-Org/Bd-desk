@@ -69,6 +69,8 @@ Les couvertures saisies ou modifiées par le collectionneur sont marquées user 
 
 POST /api/albums/:id/cover/resolve exécute la décision de couverture pour une fiche. Il ne remplace pas une couverture utilisateur et peut renvoyer fallback-editorial quand aucune preuve suffisante n’est disponible.
 
+GET /api/covers/status expose le nombre total, couvert, en attente, sans ISBN et contrôlé sans résultat. En édition licenciée, POST /api/covers/resolve lance un traitement en arrière-plan par petits lots ; il est également déclenché après un import BDGest et au démarrage lorsqu’une licence Premium active des couvertures restent à rechercher. La recherche s’arrête définitivement pour une ligne après contrôle, afin de ne pas marteler les fournisseurs. Une image machine est ensuite chargée depuis le proxy same-origin GET /api/albums/:id/cover/image, jamais directement depuis une URL fournisseur dans l’interface principale.
+
 ## Tests
 
 - Parsers et URLs : tests unitaires locaux.
