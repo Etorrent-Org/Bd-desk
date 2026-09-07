@@ -107,6 +107,9 @@ function supplementalCover(selection){
     if(selection?.source==='media-participations'&&url.hostname==='bdi.dlpdomain.com'){
       return {origin:'machine',source:'media-participations'};
     }
+    if(selection?.source==='bdbase'&&url.hostname==='static.bdbase.fr'){
+      return {origin:'machine',source:'bdbase'};
+    }
   }catch{}
   return null;
 }
