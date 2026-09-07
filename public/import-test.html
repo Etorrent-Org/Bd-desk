@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>BD Desk — diagnostic du fichier</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f3f7f6; color: #14202a; }
+    main { width: min(680px, calc(100% - 32px)); margin: 48px auto; }
+    .card { background: #fff; border: 1px solid #d7e2e0; border-radius: 18px; padding: 28px; box-shadow: 0 12px 35px rgb(20 32 42 / 8%); }
+    .eyebrow { margin: 0 0 8px; color: #1f8064; font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0 0 12px; font-size: clamp(1.55rem, 5vw, 2.25rem); line-height: 1.1; }
+    p { line-height: 1.55; }
+    .explain { color: #4a5b64; }
+    .step { margin-top: 24px; padding: 20px; border: 2px solid #1f8064; border-radius: 14px; background: #f8fcfb; }
+    .step h2 { margin: 0 0 10px; font-size: 1.05rem; }
+    .native-file { display: block; width: 100%; padding: 12px; border: 1px solid #aebfbc; border-radius: 10px; background: #fff; color: #14202a; font: inherit; cursor: pointer; }
+    .native-file:focus-visible { outline: 3px solid #8bcbb8; outline-offset: 3px; }
+    #fileState { min-height: 1.5em; margin-bottom: 0; color: #1f8064; font-weight: 700; }
+    .environment { margin-top: 22px; padding-top: 18px; border-top: 1px solid #d7e2e0; color: #52636b; font-size: .9rem; }
+    .environment code { overflow-wrap: anywhere; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+    a { color: #145e9e; font-weight: 700; }
+    .warning { margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: #fff8e6; color: #765600; font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <p class="eyebrow">BD Desk · diagnostic isolé</p>
+      <h1>Test du sélecteur de fichier</h1>
+      <p class="explain">Cette page ne charge ni l’application BD Desk, ni sa fenêtre modale, ni son service worker. Elle utilise uniquement le champ de fichier natif du navigateur.</p>
+
+      <div class="step">
+        <h2>Test 1 — champ natif du navigateur</h2>
+        <p>Clique directement dans le bouton <strong>Choisir un fichier</strong> ci-dessous, puis sélectionne n’importe quel fichier CSV.</p>
+        <input id="csvFile" class="native-file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-describedby="fileHelp">
+        <p id="fileHelp">Aucun fichier n’est envoyé ni enregistré.</p>
+        <p id="fileState" role="status" aria-live="polite">Résultat : aucun fichier sélectionné.</p>
+      </div>
+
+      <div class="warning">Ouvre cette URL dans un onglet Brave normal, pas depuis l’application PWA installée. Si le champ natif ne réagit pas ici non plus, le problème est extérieur à BD Desk.</div>
+
+      <div class="environment" aria-label="Informations de diagnostic">
+        <strong>Contexte détecté</strong>
+        <p id="environment">Lecture du contexte du navigateur…</p>
+      </div>
+
+      <div class="actions">
+        <a href="/">Retour à BD Desk</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    const input = document.getElementById('csvFile');
+    const state = document.getElementById('fileState');
+    const environment = document.getElementById('environment');
+
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      state.textContent = file
+        ? 'Résultat : fichier sélectionné — ' + file.name
+        : 'Résultat : aucun fichier sélectionné.';
+    });
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const controlled = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
+    environment.innerHTML = [
+      'URL : <code>' + window.location.href.replace(/</g, '&lt;') + '</code>',
+      'PWA installée : <strong>' + (standalone ? 'oui' : 'non') + '</strong>',
+      'Service worker actif sur cet onglet : <strong>' + (controlled ? 'oui' : 'non') + '</strong>'
+    ].join('<br>');
+  </script>
+</body>
+</html>
