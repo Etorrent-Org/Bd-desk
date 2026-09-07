@@ -1,4 +1,3 @@
-import {isBdgestCsv,readBdgestFile} from './import-bdgest.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const state={route:'home',theme:localStorage.getItem('bd-theme')||'neutral',edition:'free',license:{plan:'free',features:[]},search:'',albums:[],collection:{page:0,read:''}};
 const routes=[['home','⌂','Accueil'],['collection','▥','Ma collection'],['series','▦','Séries'],['albums','▤','Albums'],['authors','♙','Auteurs'],['publishers','♜','Éditeurs'],['wishlist','♡','Wishlist'],['loans','♧','Prêts'],['history','◷','Historique'],['stats','▥','Statistiques'],['discover','◎','Découvrir']];
@@ -92,69 +91,7 @@ function openPremiumGate(title='Fonction Premium',description='Cette fonction es
   $('#stay').onclick=()=>$('#modal').classList.add('hidden');
   $('#goLicense').onclick=()=>{$('#modal').classList.add('hidden');go('settings')};
 }
-function openImport(){
-  if(!premium('bulk_import')){openPremiumGate('Import BDGest · Premium','Importez votre collection BDGest avec idempotence, conservation des doublons ISBN et rapport de contrôle.');return;}
-  modal(`<h2>Importer une collection BDGest</h2><p>Import BDGest vers BD Desk. Le fichier est lu dans le navigateur, puis vérifié avant toute écriture. Un même IdAlbum est mis à jour lors d’un ré-import ; les ISBN dupliqués restent distincts.</p><form id="bdgestImportForm" novalidate><section class="import-section"><h3>1. Choisir un fichier</h3><div class="file-picker import-drop" id="csvPicker"><span class="file-picker-label" id="csvFileLabel">Fichier CSV BDGest</span><div class="file-picker-control"><label class="file-choose-button" for="csvFile">Choisir un fichier</label><output id="csvFileName" class="file-picker-name" aria-live="polite">Aucun fichier choisi</output></div><input id="csvFile" class="file-input-native" name="file" type="file" accept=".csv,text/csv,application/vnd.ms-excel" aria-labelledby="csvFileLabel" aria-describedby="csvFileHelp importStatus" required><small id="csvFileHelp" class="file-picker-help">Sélection native visible, glisser-déposer accepté. CSV BDGest, 5 Mo maximum.</small></div></section><div class="import-preview" id="importPreview" aria-live="polite">Aucun contenu à analyser.</div><small id="importStatus" class="muted" aria-live="polite"></small><div class="modal-actions"><button type="button" class="btn" id="cancel">Annuler</button><button type="button" class="btn" id="analyzeImport" disabled>Analyser</button><button type="submit" class="btn primary" id="doImport" disabled>Importer</button></div></form>`);
-  $('#cancel').onclick=()=>$('#modal').classList.add('hidden');
-  const form=$('#bdgestImportForm'), input=$('#csvFile'), fileName=$('#csvFileName'), picker=$('#csvPicker'), status=$('#importStatus'), preview=$('#importPreview'), analyzeButton=$('#analyzeImport'), importButton=$('#doImport');
-  const source={text:'',label:'',analysis:null,reading:false,readSequence:0};
-  const setStatus=(message='')=>{status.textContent=message};
-  const resetAnalysis=()=>{source.analysis=null;importButton.disabled=true;preview.innerHTML='Aucun contenu analysé.'};
-  const setSource=(text,label)=>{
-    source.text=String(text||'');source.label=label||'Contenu CSV';resetAnalysis();
-    analyzeButton.disabled=!source.text.trim();
-  };
-  const selectedFile=()=>input.files?.item?.(0)||input.files?.[0]||null;
-  const loadFile=async file=>{
-    const sequence=++source.readSequence;
-    if(!file){fileName.textContent='Aucun fichier choisi';input.setCustomValidity('');setSource('','');setStatus('Choisissez un fichier CSV BDGest.');return;}
-    fileName.textContent=file.name;
-    if(!isBdgestCsv(file)){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');input.setCustomValidity('Le fichier sélectionné doit être un CSV.');setStatus('Le fichier sélectionné doit être un CSV.');return;}
-    if(file.size>5_000_000){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');input.setCustomValidity('Le fichier dépasse 5 Mo.');setStatus('Fichier trop volumineux (5 Mo maximum).');return;}
-    input.setCustomValidity('');source.reading=true;analyzeButton.disabled=true;importButton.disabled=true;setStatus(`Lecture locale de ${file.name}…`);
-    try{
-      const text=await readBdgestFile(file);
-      if(sequence!==source.readSequence)return;
-      if(!text.trim())throw new Error('Le fichier CSV est vide.');
-      setSource(text,file.name);setStatus(`Fichier prêt : ${file.name}. Cliquez sur « Analyser ».`);
-    }catch(error){
-      if(sequence===source.readSequence){input.value='';fileName.textContent='Aucun fichier choisi';setSource('','');setStatus(error.message||'Lecture du fichier impossible.');}
-    }finally{if(sequence===source.readSequence)source.reading=false;}
-  };
-  input.addEventListener('change',()=>void loadFile(selectedFile()));
-  ['dragenter','dragover'].forEach(eventName=>picker.addEventListener(eventName,e=>{e.preventDefault();picker.classList.add('drag-over')}));
-  ['dragleave','drop'].forEach(eventName=>picker.addEventListener(eventName,e=>{e.preventDefault();picker.classList.remove('drag-over')}));
-  picker.addEventListener('drop',e=>void loadFile(e.dataTransfer?.files?.[0]));
-  const renderPreview=data=>{
-    const errors=Array.isArray(data?.errors)?data.errors:[];
-    const message=data?.valid
-      ? `<strong>${Number(data.rows)||0} albums détectés</strong><span>${Number(data.isbnPresent)||0} ISBN · ${Number(data.duplicateIsbnGroups)||0} groupe(s) d’ISBN partagé(s) · ${Number(data.ignoredRows)||0} ligne(s) ignorée(s)</span>`
-      : `<strong>CSV BDGest non reconnu</strong><span>${errors.map(escapeHtml).join(' ')||'Vérifiez le fichier sélectionné.'}</span>`;
-    preview.innerHTML=message+(errors.length&&data?.valid?`<span class="import-errors">${errors.map(escapeHtml).join(' ')}</span>`:'');
-  };
-  analyzeButton.onclick=async()=>{
-    if(source.reading||!source.text.trim()){setStatus('Choisissez un fichier CSV BDGest.');return;}
-    analyzeButton.disabled=true;importButton.disabled=true;setStatus('Analyse du format BDGest…');
-    try{
-      const r=await fetch('/api/import/bdgest/preview',{method:'POST',headers:{'content-type':'text/csv'},body:source.text}), d=await r.json().catch(()=>({})), result=d.preview||d;
-      renderPreview(result);
-      if(!r.ok)throw Object.assign(new Error(d.error||`HTTP ${r.status}`),{status:r.status});
-      if(!result.valid)throw Object.assign(new Error(result.errors?.[0]||'CSV BDGest invalide'),{status:400});
-      source.analysis=result;importButton.disabled=false;setStatus(`${result.rows} albums prêts à importer. Vérifiez l’aperçu puis cliquez sur « Importer ».`);
-    }catch(error){source.analysis=null;importButton.disabled=true;analyzeButton.disabled=!source.text.trim();setStatus(error.status===402?'Import massif réservé au Premium':error.status===404?'Le service d’aperçu BDGest est indisponible. La version serveur doit être redémarrée avant l’import.':error.message||'Analyse impossible.');}
-  };
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    if(!source.analysis?.valid){setStatus('Analysez le CSV avant de lancer l’import.');return;}
-    analyzeButton.disabled=true;importButton.disabled=true;setStatus('Import en cours…');
-    try{
-      const r=await fetch('/api/import/bdgest',{method:'POST',headers:{'content-type':'text/csv'},body:source.text}), d=await r.json().catch(()=>({}));
-      if(!r.ok)throw Object.assign(new Error(d.error||`HTTP ${r.status}`),{status:r.status});
-      if(d.errors?.length||d.skipped){renderPreview({valid:false,errors:d.errors?.map(error=>error.error)||['Certaines lignes n’ont pas été importées.']});analyzeButton.disabled=false;setStatus(`${d.imported} albums importés, ${d.skipped} rejeté(s). Vérifiez les erreurs avant de recommencer.`);return;}
-      $('#modal').classList.add('hidden');state.collection.page=0;state.search='';toast(`${d.imported} albums importés · ${d.skipped} rejetés`);void render();
-    }catch(error){importButton.disabled=false;analyzeButton.disabled=false;setStatus(error.status===402?'Import massif réservé au Premium':error.message||'Import impossible.');}
-  });
-}
+function openImport(){location.href='/import-bdgest.html';}
 async function runDiscover(){
   const input=$('#discoverIsbn'),out=$('#discoverResult');
   if(!input?.value)return;
@@ -205,4 +142,4 @@ function openWebhook(){modal(`<h2>Ajouter un webhook</h2><form id="webhookForm">
 function setTheme(t){state.theme=t;localStorage.setItem('bd-theme',t);document.body.dataset.theme=t;render()}
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-route],#themeBtn,#menuBtn');if(!button)return;if(button.id==='menuBtn'){e.preventDefault();$('.sidebar').classList.toggle('open');return}if(button.id==='themeBtn'){e.preventDefault();go('settings');return}if(button.dataset.route==='add'){openAdd();return}e.preventDefault();go(button.dataset.route)});
 $('#fab').onclick=openAdd;$('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){state.search=e.target.value;go('collection')}};document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement?.tagName!=='INPUT'){e.preventDefault();$('#globalSearch').focus()}});window.addEventListener('hashchange',()=>{state.route=routeFromHash();nav();void render()});
-(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260906-2',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
+(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260907-1',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
