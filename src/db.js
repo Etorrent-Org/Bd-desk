@@ -79,17 +79,21 @@ function migrateBibliographicCoverV5(db){
 function cleanupSyntheticFixtureV1(db){
   const key='cleanup-synthetic-bdgest-fixture-v1';
   if(db.prepare('SELECT 1 FROM settings WHERE key=?').get(key))return;
-  const rows=db.prepare(`SELECT id FROM albums
-    WHERE bdgest_id='4'
-      AND (isbn IS NULL OR TRIM(isbn)='')
-      AND series='One shot'
-      AND title='Sans ISBN'
-      AND publisher='Editeur C'
-      AND writer='Auteur C'
-      AND artist='Dessinateur C'`).all();
-  for(const row of rows){
-    db.prepare('DELETE FROM history WHERE album_id=?').run(row.id);
-    db.prepare('DELETE FROM albums WHERE id=?').run(row.id);
+  const columns=new Set(db.prepare('PRAGMA table_info(albums)').all().map(column=>column.name));
+  const required=['id','bdgest_id','isbn','series','title','publisher','writer','artist'];
+  if(required.every(column=>columns.has(column))){
+    const rows=db.prepare(`SELECT id FROM albums
+      WHERE bdgest_id='4'
+        AND (isbn IS NULL OR TRIM(isbn)='')
+        AND series='One shot'
+        AND title='Sans ISBN'
+        AND publisher='Editeur C'
+        AND writer='Auteur C'
+        AND artist='Dessinateur C'`).all();
+    for(const row of rows){
+      db.prepare('DELETE FROM history WHERE album_id=?').run(row.id);
+      db.prepare('DELETE FROM albums WHERE id=?').run(row.id);
+    }
   }
   db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(key,new Date().toISOString());
 }
