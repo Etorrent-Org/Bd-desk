@@ -6,39 +6,20 @@ import {isBdgestCsv,readBdgestFile} from '../public/import-bdgest.js';
 
 const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('le flux BDGest utilise le champ natif avant l’analyse serveur',async()=>{
+test('le flux BDGest utilise une page dédiée et un champ natif visible',async()=>{
   const js=await read('public/app.js');
-  const css=await read('public/styles.css');
-  const reader=await read('public/import-bdgest.js');
-  assert.match(js,/form id="bdgestImportForm" novalidate/);
-  assert.match(js,/label class="file-choose-button" for="csvFile">Choisir un fichier<\/label>/);
-  assert.match(js,/input id="csvFile" class="file-input-native" name="file" type="file" accept="\.csv,text\/csv,application\/vnd\.ms-excel"/);
-  assert.match(js,/aria-labelledby="csvFileLabel"/);
-  assert.match(js,/output id="csvFileName"/);
-  assert.match(js,/input\.addEventListener\('change',\(\)=>void loadFile\(selectedFile\(\)\)\)/);
-  assert.match(js,/import \{isBdgestCsv,readBdgestFile\}/);
-  assert.match(js,/fileName\.textContent=file\.name/);
-  assert.match(js,/readBdgestFile\(file\)/);
-  assert.match(js,/addEventListener\('drop'/);
-  assert.match(js,/api\/import\/bdgest\/preview/);
-  assert.match(js,/id="analyzeImport"/);
-  assert.match(js,/form\.addEventListener\('submit',async e=>/);
-  assert.match(reader,/isBdgestCsv=file=>/);
-  assert.match(reader,/readBdgestFile=file=>/);
-  assert.match(reader,/FileReader/);
-  assert.doesNotMatch(js,/inspectLocalCsv/);
-  assert.doesNotMatch(js,/parseLocalCsv/);
-  assert.doesNotMatch(js,/csvText/);
-  assert.doesNotMatch(js,/Aperçu local/);
-  assert.doesNotMatch(js,/Route API inconnue/);
-  assert.doesNotMatch(js,/input\.click\(\)/);
-  assert.doesNotMatch(js,/showOpenFilePicker/);
-  assert.match(css,/\.file-picker\{display:grid/);
-  assert.match(css,/\.file-picker-control\{display:flex/);
-  assert.match(css,/\.file-choose-button\{display:inline-flex/);
-  assert.match(css,/\.file-input-native\{position:absolute!important;width:1px!important;height:1px!important/);
-  assert.match(css,/clip-path:inset\(50%\)!important/);
-  assert.match(css,/\.import-preview/);
+  const page=await read('public/import-bdgest.html');
+  const pageJs=await read('public/import-bdgest-page.js');
+  assert.match(js,/function openImport\(\)\{location\.href='\/import-bdgest\.html';\}/);
+  assert.match(page,/id="csvFile"[^>]*type="file"/);
+  assert.match(page,/class="file-native"/);
+  assert.match(page,/script type="module" src="\/import-bdgest-page\.js\?v=20260907-1"/);
+  assert.doesNotMatch(page,/file-input-native|input\.click\(\)|showOpenFilePicker/);
+  assert.match(pageJs,/input\.addEventListener\('change'/);
+  assert.match(pageJs,/api\/capabilities/);
+  assert.match(pageJs,/api\/import\/bdgest\/preview/);
+  assert.match(pageJs,/api\/import\/bdgest/);
+  assert.doesNotMatch(pageJs,/input\.click\(\)|showOpenFilePicker/);
 });
 
 test('le lecteur BDGest lit un vrai objet File avant l’appel serveur',async()=>{
