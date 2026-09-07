@@ -73,7 +73,7 @@ test('parse OpenLibrary fiche directe',()=>{
   assert.match(x[0].coverUrl,/\/b\/id\/99-L\.jpg/);
 });
 
-test('parse BnF Dublin Core expose ISBN et couverture BnF',()=>{
+test('parse BnF Dublin Core sépare ISBN et ARK sans inventer de couverture',()=>{
   const x=parseBnfDublinCore(fixture('sweet-revenge-bnf.xml'));
   assert.equal(x[0].title,'Sweet revenge');
   assert.equal(x[0].publisher,'Glénat');
@@ -81,7 +81,8 @@ test('parse BnF Dublin Core expose ISBN et couverture BnF',()=>{
   assert.equal(x[0].series,'Valhalla Bunker');
   assert.equal(x[0].seriesNumber,'1');
   assert.deepEqual(x[0].identifiers,[sweetIsbn]);
-  assert.match(x[0].coverUrl,/openapi\.bnf\.fr\/couverture/);
+  assert.equal(x[0].ark,'ark:/12148/cb475488635');
+  assert.equal(x[0].coverUrl,null);
   assert.deepEqual(parseBnfDublinCore('<srw:numberOfRecords>0</srw:numberOfRecords>'),[]);
 });
 
@@ -97,6 +98,17 @@ test('parse BnF Intermarc extrait les champs éditoriaux de la fiche réelle',()
   assert.equal(x[0].format,'32 cm');
   assert.deepEqual(x[0].authors,['Fabien Bedouel']);
   assert.deepEqual(x[0].identifiers,[sweetIsbn]);
+  assert.equal(x[0].ark,'ark:/12148/cb475488635');
+  assert.match(x[0].coverUrl,/idArk=ark%3A%2F12148%2Fcb475488635/);
+});
+
+test('BnF ignore un ARK ressemblant accidentellement à un EAN et exige une zone 950 C1',()=>{
+  const dc='<srw:numberOfRecords>1</srw:numberOfRecords><dc:identifier>http://catalogue.bnf.fr/ark:/12148/cb46954697</dc:identifier><dc:title>Notice sans ISBN</dc:title>';
+  const parsed=parseBnfDublinCore(dc)[0];
+  assert.deepEqual(parsed.identifiers,[]);
+  assert.equal(parsed.coverUrl,null);
+  const intermarc='<srw:numberOfRecords>1</srw:numberOfRecords><record><recordIdentifier>ark:/12148/cb475488635</recordIdentifier><datafield tag="020"><subfield code="a">9782344059814</subfield></datafield><datafield tag="245"><subfield code="a">Sans image</subfield></datafield></record>';
+  assert.equal(parseBnfIntermarc(intermarc)[0].coverUrl,null);
 });
 
 test('parse BnF Intermarc fallback 290 et 410',()=>{

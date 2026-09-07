@@ -70,6 +70,22 @@ export function migrate(db) {
      WHERE cover_url IS NOT NULL AND TRIM(cover_url)<>''
        AND (cover_origin IS NULL OR cover_origin='');
   `);
+  const coverResolverMigration='cover-resolver-v2';
+  if(!db.prepare('SELECT 1 FROM settings WHERE key=?').get(coverResolverMigration)){
+    db.exec(`
+      UPDATE albums
+         SET cover_url=NULL, cover_origin=NULL, cover_source=NULL, cover_confidence=NULL,
+             cover_checked_at=NULL, cover_decision=NULL
+       WHERE cover_origin='machine'
+         AND cover_source IN ('bnf','bnf-intermarc');
+      UPDATE albums
+         SET cover_checked_at=NULL, cover_decision=NULL
+       WHERE (cover_url IS NULL OR TRIM(cover_url)='')
+         AND isbn IS NOT NULL AND TRIM(isbn)<>''
+         AND COALESCE(cover_origin,'')<>'user';
+    `);
+    db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(coverResolverMigration,new Date().toISOString());
+  }
 }
 
 function ensureAlbumColumn(db, name, definition) {

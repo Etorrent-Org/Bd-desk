@@ -78,3 +78,16 @@ test('le suivi des couvertures distingue les albums à rechercher, couverts et s
   assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[pending.id]);
   assert.equal(getAlbum(db,covered.id).cover_origin,'user');
 });
+test('migration v2 retire les couvertures BnF machine et relance les contrôles sans résultat',()=>{
+  const db=openDatabase(':memory:');
+  const bad=createAlbum(db,{isbn:'9782344059814',series:'S',title:'Mauvaise BnF'});
+  db.prepare('UPDATE albums SET cover_url=?,cover_origin=?,cover_source=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('https://openapi.bnf.fr/couverture/image/image/recupererImage?EAN=1214846954697','machine','bnf','verified-source',bad.id);
+  const empty=createAlbum(db,{isbn:'9782203237766',series:'S',title:'Sans résultat'});
+  db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('no-trusted-cover',empty.id);
+  db.prepare("DELETE FROM settings WHERE key='cover-resolver-v2'").run();
+  migrate(db);
+  assert.equal(getAlbum(db,bad.id).cover_url,null);
+  assert.equal(getAlbum(db,bad.id).cover_checked_at,null);
+  assert.equal(getAlbum(db,empty.id).cover_checked_at,null);
+  assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[bad.id,empty.id]);
+});

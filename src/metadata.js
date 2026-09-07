@@ -73,6 +73,13 @@ export function bnfCoverUrl(isbn) {
     : null;
 }
 
+export function bnfArkCoverUrl(ark) {
+  const match = String(ark || '').match(/ark:\/12148\/cb[0-9a-z]+/i);
+  return match
+    ? 'https://openapi.bnf.fr/couverture/image/image/recupererImage?idArk=' + encodeURIComponent(match[0]) + '&couverture=1&taille=originale&largeur=900&hauteur=1400'
+    : null;
+}
+
 export function hachetteSearchUrl() {
   return 'https://api.hachette.fr/search';
 }
@@ -208,6 +215,10 @@ function canonicalIdentifiers(values) {
     if (isbn && !identifiers.includes(isbn)) identifiers.push(isbn);
   }
   return identifiers;
+}
+
+function bnfArkIdentifier(value) {
+  return String(value || '').match(/ark:\/12148\/cb[0-9a-z]+/i)?.[0] || null;
 }
 
 function coverEvidence(source, identifiers, extra={}) {
@@ -375,10 +386,11 @@ export function parseBnfDublinCore(xml) {
     if (parsed.seriesNumber || !relationSeries.series) relationSeries = parsed;
   }
   const authors = xmlTexts(xml, 'creator');
-  const coverUrl = identifiers[0] ? bnfCoverUrl(identifiers[0]) : null;
+  const ark = xmlTexts(xml, 'identifier').map(bnfArkIdentifier).find(Boolean) || null;
   return [{
     source: 'bnf',
-    sourceId: xmlText(xml, 'identifier') || null,
+    sourceId: ark || xmlText(xml, 'identifier') || null,
+    ark,
     title,
     publisher: normalizePublisher(rawPublisher),
     collection: collectionFromPublisher(rawPublisher),
@@ -389,8 +401,8 @@ export function parseBnfDublinCore(xml) {
     seriesNumber: relationSeries.seriesNumber,
     identifiers,
     coverIdentifiers: identifiers,
-    coverUrl,
-    coverEvidence: coverUrl ? coverEvidence('bnf', identifiers, {catalogRecord: true}) : null
+    coverUrl: null,
+    coverEvidence: null
   }];
 }
 
@@ -433,11 +445,14 @@ export function parseBnfIntermarc(xml) {
     ...allMarcSubfields(xml, '073', 'a')
   ]);
   const sourceId = xmlText(xml, 'recordIdentifier') || firstMarcSubfield(xml, '003', 'a') || marcControlFields(xml, '003')[0] || null;
-  const coverUrl = identifiers[0] ? bnfCoverUrl(identifiers[0]) : null;
+  const ark = bnfArkIdentifier(sourceId) || bnfArkIdentifier(marcControlFields(xml, '003')[0]);
+  const hasFrontCover = marcFields(xml, '950').some(field => marcSubfields(field, 'b').some(value => /^C1$/i.test(value)));
+  const coverUrl = hasFrontCover ? bnfArkCoverUrl(ark) : null;
   if (!title && !series && !collection && !authors.length) return [];
   return [{
     source: 'bnf-intermarc',
     sourceId,
+    ark,
     title,
     series,
     seriesNumber,
@@ -451,7 +466,7 @@ export function parseBnfIntermarc(xml) {
     coverIdentifiers: identifiers,
     coverUrl,
     description: firstMarcSubfield(xml, '830', 'a'),
-    coverEvidence: coverUrl ? coverEvidence('bnf-intermarc', identifiers, {catalogRecord: true}) : null
+    coverEvidence: coverUrl ? coverEvidence('bnf-intermarc', identifiers, {catalogRecord: true, imageField: '950$b'}) : null
   }];
 }
 

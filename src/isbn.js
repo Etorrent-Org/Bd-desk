@@ -35,7 +35,9 @@ export function isValidIsbn10(value) {
 
 export function canonicalIsbn(value) {
   const n = normalizeIsbn(value);
-  if (n.length === 13 && isValidIsbn13(n)) return n;
+  // ISBN-13 uses the Bookland prefixes 978 and 979. A generic EAN-13 can have
+  // a valid checksum without being an ISBN (notably digits extracted from a BnF ARK).
+  if (n.length === 13 && /^(978|979)/.test(n) && isValidIsbn13(n)) return n;
   if (n.length === 10 && isValidIsbn10(n)) return isbn10To13(n);
   return null;
 }
