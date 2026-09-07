@@ -13,7 +13,7 @@
       await new Promise((resolve,reject)=>{
         const existing=document.querySelector('script[data-bd-scanner-loader]');
         if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}
-        const s=document.createElement('script');s.dataset.bdScannerLoader='1';s.src='/ean-scanner.js?v=20260906-2';s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+        const s=document.createElement('script');s.dataset.bdScannerLoader='1';s.src='/ean-scanner.js?v=20260907-1';s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
       });
       if(window.BDDeskScanner?.open)window.BDDeskScanner.open('add');
       else toast('Scanner caméra indisponible');
