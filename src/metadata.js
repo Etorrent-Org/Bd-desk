@@ -2,6 +2,8 @@ import * as core from './metadata-core.js';
 import { fetchOfficialCoverCandidates } from './official-covers.js';
 
 export * from './metadata-core.js';
+// Stable facade export used by runtime/deployment contracts even when provider code lives in metadata-core.
+export const hachetteSearchUrl=core.hachetteSearchUrl;
 
 export const MIN_COVER_EDGE=300;
 
