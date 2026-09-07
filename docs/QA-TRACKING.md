@@ -9,6 +9,20 @@ Règle de suivi :
 
 Légende : **✅ validé** · **⚠️ partiel / non bloquant** · **⏳ à valider** · **❌ échec**.
 
+## Passe accueil et couvertures — 2026-09-07
+
+| Gate | Validation | Preuve |
+|---|---|---|
+| Recherche multi-source par lots | ✅ 484 albums contrôlés sur l’instance licenciée ; 407 couvertures machine ou utilisateur disponibles, 0 album ISBN encore en attente. | `GET /api/covers/status` après `POST /api/covers/resolve` |
+| Albums sans couverture retenue | ✅ 63 albums ont été contrôlés sans preuve exploitable et 14 n’ont pas d’ISBN ; aucun faux visuel fournisseur n’est persisté. | État live : `checkedWithoutCover=63`, `withoutIsbn=14` |
+| Proxy d’image same-origin | ✅ Image Sweet Revenge servie en `200 image/jpeg`, 2 107 475 octets ; les URLs fournisseur ne sont pas exposées par l’accueil. | Deploy #137 + contrôle live `/api/albums/455/cover/image` |
+| Accueil densifié | ✅ 8 acquisitions récentes et 6 reprises sont renvoyées ; le contrôle navigateur observe 8 cartes, dont 6 images réelles et 2 fallbacks éditoriaux vérifiés. | Build `2026.09.07.3`, contrôle visuel AlwaysData |
+| Cache PWA | ✅ Build et cache incrémentés (`bd-desk-v45` / `20260907-3`) pour éliminer l’ancien chemin `/covers/*.svg`. | CI #317 + Deploy #137 |
+| Tests automatisés | ✅ 96/96 tests ; 99,25 % lignes, 95,24 % fonctions, 77,57 % branches. | `npm test`, `npm run test:coverage` |
+| Import BDGest réel | ✅ 479/479 albums, 13 891/13 891 contrôles, 100 % de fidélité, réimport idempotent. | `npm run validate:bdgest` sur le CSV privé, hors dépôt |
+| CI et livraison | ✅ PR #28 fusionnée après CI #313 ; correctif de contrôle PR #29 fusionné après CI #316 ; CI main #317 et Deploy #137 verts. | [PR #28](https://github.com/Etorrent-Org/Bd-desk/pull/28), [PR #29](https://github.com/Etorrent-Org/Bd-desk/pull/29) |
+| QA iPhone/iPad matériel | ⏳ La vérification cloud est verte ; les tests matériels QA-IOS-002 à QA-IOS-020 restent à exécuter sur les appareils réels. | Voir la campagne ci-dessous |
+
 ## Tableau de suivi
 
 ## Réécriture complète de l’import — 2026-09-06
