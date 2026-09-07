@@ -8,8 +8,13 @@
   const canonical=value=>text(value).replace(/[^0-9X]/gi,'').toUpperCase();
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
   const hostId=host=>host?.dataset?.album||host?.dataset?.detailAlbum||null;
-  const trustedCoverUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')}catch{return false}};
-  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin!=='user'&&album?.coverOrigin!=='user'&&(album?.cover_origin==='machine'||album?.coverOrigin==='machine'||trustedCoverUrl(src));return src&&machine&&id?'/api/albums/'+encodeURIComponent(id)+'/cover/image':src||null};
+  const trustedProxyUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')||host==='bdfugue.com'||host==='www.bdfugue.com'||host.endsWith('.bdfugue.com')}catch{return false}};
+  const displayUrl=album=>{
+    const src=album?.cover_url||album?.coverUrl;
+    const id=album?.id||album?.albumId;
+    const automated=album?.cover_origin!=='user'&&album?.coverOrigin!=='user'&&(album?.cover_origin==='machine'||album?.coverOrigin==='machine'||album?.cover_origin==='partner'||album?.coverOrigin==='partner'||trustedProxyUrl(src));
+    return src&&automated&&id&&trustedProxyUrl(src)?'/api/albums/'+encodeURIComponent(id)+'/cover/image':src||null;
+  };
 
   function sourcesFor(isbn){
     const n=canonical(isbn);
@@ -43,9 +48,11 @@
 
   function sourceTitle(source){
     if(source==='hachette')return 'Source : catalogue officiel Glénat / Hachette Livre · récupérée le '+dateFr();
+    if(source==='media-participations')return 'Source : catalogue éditeur Média-Participations · ISBN vérifié · récupérée le '+dateFr();
+    if(source==='bdfugue')return 'Source : BDfugue · album vérifié · récupérée le '+dateFr();
     if(source==='bnf'||source==='bnf-intermarc')return 'Source : Bibliothèque nationale de France · récupérée le '+dateFr();
     if(source==='google-books')return 'Source : Google Books · ISBN vérifié';
-    return 'Source : Open Library · ISBN vérifié';
+    return 'Source : fournisseur bibliographique · ISBN vérifié';
   }
 
   function makeEditorial(node,album={}){
@@ -67,7 +74,7 @@
 
   async function installCover({node,album,cover}){
     if(!cover?.url||album?.cover_origin==='user')return false;
-    const url=displayUrl({...album,cover_url:cover.url,cover_origin:'machine'});
+    const url=displayUrl({...album,cover_url:cover.url,cover_origin:album?.cover_origin||'machine'});
     if(!(await probe(url)))return false;
     if(!node?.isConnected)return true;
     const im=document.createElement('img');
@@ -90,10 +97,15 @@
       const album=await fetch('/api/albums/'+encodeURIComponent(id),{cache:'no-store'}).then(response=>response.ok?response.json():null);
       if(!album)return false;
       if(album.cover_origin==='user')return Boolean(makeEditorial(node,album));
-      if(!album.isbn)return Boolean(makeEditorial(node,album));
       const payload=await resolveFor(id);
       const current=payload?.album||album;
       if(await installCover({node,album:current,cover:payload?.resolution?.cover}))return true;
+      if(current.cover_url){
+        const direct=displayUrl(current);
+        if(direct&&await probe(direct)){
+          return installCover({node,album:current,cover:{url:current.cover_url,source:current.cover_source,confidence:current.cover_confidence}});
+        }
+      }
       makeEditorial(node,current);
       return false;
     }catch{
