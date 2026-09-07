@@ -1,3 +1,4 @@
+# snapshot refresh 2
 name: Live cover snapshot
 on:
   push:
