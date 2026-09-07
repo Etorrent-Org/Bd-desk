@@ -8,43 +8,22 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Test live provider modules
+      - name: Inspect BDbase search form and exact ISBN results
         run: |
-          node --input-type=module <<'NODE'
-          import { fetchBdfugueCover, fetchBdfugueCoverByMetadata } from './src/official-covers.js';
-          import { fetchMediaParticipationsCover } from './src/publisher-covers.js';
-          const exact=['9782369815921','9791093603407','9782919069910','9791095720294','9782302093027','3770013604577','3770013604065','9791093603377','9782205000412','9782800146218','9782724252675','9782298013726','9782203020085','9782355741302'];
-          for(const isbn of exact){
-            const [b,m]=await Promise.all([fetchBdfugueCover(isbn,{timeoutMs:12000}),fetchMediaParticipationsCover(isbn,{timeoutMs:12000})]);
-            console.log('EXACT',isbn,'BDFUGUE',JSON.stringify(b.map(x=>({sourceUrl:x.sourceUrl,coverUrl:x.coverUrl,width:x.coverWidth,height:x.coverHeight}))),'MEDIA',JSON.stringify(m.map(x=>({coverUrl:x.coverUrl,width:x.coverWidth,height:x.coverHeight}))));
-          }
-          const noIsbn=[
-            {series:'Blake et Mortimer (Les Aventures de)',number:'18',title:'Le Sanctuaire du Gondwana',publisher:'Gombert Editions'},
-            {series:'Blake et Mortimer',number:'2',title:'Le Secret de l Espadon 2',publisher:'Lombard'},
-            {series:'Blueberry',number:'2',title:'Tonnerre à l ouest',publisher:'Dargaud'},
-            {series:'Blueberry',number:'13',title:'Chihuahua Pearl',publisher:'Dargaud'},
-            {series:'Tintin',number:'14',title:'Le temple du soleil',publisher:'Casterman'}
-          ];
-          for(const album of noIsbn){
-            const b=await fetchBdfugueCoverByMetadata(album,{timeoutMs:12000});
-            console.log('META',JSON.stringify(album),'BDFUGUE',JSON.stringify(b.map(x=>({sourceUrl:x.sourceUrl,coverUrl:x.coverUrl,score:x.coverEvidence?.bibliographicScore,width:x.coverWidth,height:x.coverHeight}))));
-          }
-          NODE
+          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/' -o /tmp/home.html
+          echo '--- FORM ---'
+          grep -n -A8 -B2 '<form action="/recherche"' /tmp/home.html | head -40 || true
+          for PARAM in q query search recherche texte keywords s; do
+            URL="https://www.bdbase.fr/recherche?${PARAM}=9782919069910"
+            CODE="$(curl -sSL -o /tmp/result.html -w '%{http_code}' -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' "$URL")"
+            echo "--- PARAM=$PARAM HTTP=$CODE BYTES=$(wc -c < /tmp/result.html) ---"
+            grep -Eio 'href="/bd/[^"]+"' /tmp/result.html | head -10 || true
+            grep -Eio '9782919069910' /tmp/result.html | head -3 || true
+          done
 
-      - name: Inspect raw BDfugue search HTML
+      - name: Inspect exact BDbase album HTML and cover markup
         run: |
-          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdfugue.com/catalogsearch/result/?q=9782919069910' -o /tmp/bdfugue.html || true
-          echo "BDFUGUE_BYTES=$(wc -c < /tmp/bdfugue.html 2>/dev/null || echo 0)"
-          grep -Eio 'href="[^"]+"[^>]*(product-item-link|product-item-photo)|class="[^"]*(product-item-link|product-item-photo)[^"]*"[^>]*href="[^"]+"' /tmp/bdfugue.html | head -20 || true
-          grep -Eio 'https://www\.bdfugue\.com/[^" <]+' /tmp/bdfugue.html | head -30 || true
-
-      - name: Inspect BDbase search form
-        run: |
-          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/' -o /tmp/bdbase.html || true
-          echo "BDBASE_BYTES=$(wc -c < /tmp/bdbase.html 2>/dev/null || echo 0)"
-          grep -Eio '<form[^>]*(search|recherch)[^>]*>|<form[^>]*action="[^"]+"[^>]*>' /tmp/bdbase.html | head -20 || true
-          grep -Eio '(action|name|placeholder)="[^"]*(search|recherch)[^"]*"' /tmp/bdbase.html | head -30 || true
+          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/bd/les-bidochon-tomes-5-et-6-ragots-intimes-en-voyage-organise' -o /tmp/album.html
+          echo "ALBUM_BYTES=$(wc -c < /tmp/album.html)"
+          grep -n -E -A3 -B3 'Couverture de l.album|9782724252675' /tmp/album.html | head -80 || true
+          grep -Eio '(src|data-src|href)="[^"]+\.(jpg|jpeg|png|webp)[^"]*"' /tmp/album.html | head -40 || true
