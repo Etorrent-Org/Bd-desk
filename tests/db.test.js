@@ -74,7 +74,7 @@ test('le suivi des couvertures distingue les albums à rechercher, couverts et s
   const covered=createAlbum(db,{isbn:'9782344059814',series:'Couverte',title:'Déjà couverte',coverUrl:'https://example.test/user.jpg'});
   const checked=createAlbum(db,{isbn:'9782203237766',series:'Introuvable',title:'Déjà contrôlée'});
   db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('no-trusted-cover',checked.id);
-  assert.deepEqual(coverResolutionStatus(db),{total:4,withCover:1,missing:3,pending:1,withoutIsbn:1,checkedWithoutCover:1,coveragePercent:25});
+  assert.deepEqual(coverResolutionStatus(db),{total:4,withCover:1,missing:3,lowRes:0,pending:1,withoutIsbn:1,checkedWithoutCover:1,coveragePercent:25});
   assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[pending.id]);
   assert.equal(getAlbum(db,covered.id).cover_origin,'user');
 });
