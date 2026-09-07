@@ -116,7 +116,7 @@ input.addEventListener('change',()=>void loadFile(selectedFile()));
   event.preventDefault();
   picker.classList.add('drag-over');
 }));
-['dragleave','drop'].forEach(eventName=>picker.addEventListener(event=>{
+['dragleave','drop'].forEach(eventName=>picker.addEventListener(eventName,event=>{
   event.preventDefault();
   picker.classList.remove('drag-over');
 }));
