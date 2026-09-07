@@ -1,5 +1,6 @@
 import { canonicalIsbn } from './isbn.js';
 import { imageDimensions } from './metadata-core.js';
+import { fetchBdbaseCoverCandidates } from './bdbase-covers.js';
 
 const USER_AGENT='BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)';
 const MAX_IMAGE_BYTES=10*1024*1024;
@@ -249,8 +250,11 @@ export async function fetchBdfugueCoverByMetadata(album,opts={}){
 }
 
 export async function fetchBibliographicCoverCandidates(album,opts={}){
-  const settled=await Promise.allSettled([fetchBdfugueCoverByMetadata(album,opts)]);
-  return settled.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+  // BDbase is queried first because its public search is stable for automated ISBN/title lookup;
+  // BDfugue remains a secondary source but currently rate-limits server-side requests.
+  const bdbase=await fetchBdbaseCoverCandidates(album,opts).catch(()=>[]);
+  if(bdbase.length)return bdbase;
+  return fetchBdfugueCoverByMetadata(album,opts).catch(()=>[]);
 }
 
 export async function fetchOfficialCoverCandidates(isbn,opts={}){
