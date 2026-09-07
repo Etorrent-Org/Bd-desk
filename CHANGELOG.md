@@ -1,5 +1,7 @@
 # Changelog
 
+- **Import BDGest reconstruit sur une page dédiée** : abandon du champ masqué dans la modale au profit d’un contrôle natif visible, analyse serveur puis import confirmé, sans déclenchement JavaScript du sélecteur.
+
 ## Unreleased
 
 - **Sélecteur BDGest repris** : remplacement du rendu CSS direct du champ `type=file` par un bouton visible relié par `label[for]` au champ natif, avec conservation de l'accessibilité clavier, du changement de fichier et du glisser-déposer.
