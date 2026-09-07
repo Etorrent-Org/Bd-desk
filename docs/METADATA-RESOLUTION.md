@@ -28,6 +28,8 @@ Le serveur choisit d’abord une source officielle quand elle est disponible. Po
 
 La création ou modification explicite d’une couverture par l’utilisateur marque cover_origin=user. POST /api/albums/:id/cover/resolve ne peut alors pas la remplacer.
 
+La recherche en masse Premium utilise POST /api/covers/resolve et GET /api/covers/status. Elle ne sélectionne que les albums avec ISBN, sans couverture et non encore contrôlés ; les lots sont limités et deux workers au maximum interrogent le résolveur central. L’interface affiche la progression sur l’accueil. Les couvertures machine retenues sont exposées par le proxy same-origin GET /api/albums/:id/cover/image, qui revalide l’hôte fournisseur et le contenu binaire avant livraison.
+
 Les anciennes lignes qui contiennent une URL Open Library mécanique sont migrées vers cover_origin=machine, cover_source=open-library et une confiance basse. Elles peuvent être réparées par une décision ultérieure avec une meilleure preuve.
 
 L’enrichissement Premium applique la même résolution aux champs éditoriaux, mais ne remplace jamais une valeur déjà renseignée. Les données personnelles restent hors de la liste des champs résolus.

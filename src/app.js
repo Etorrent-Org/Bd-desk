@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, seedIfEmpty, listAlbums, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
+import { openDatabase, seedIfEmpty, listAlbums, listPendingCoverAlbums, coverResolutionStatus, getAlbum, createAlbum, updateAlbum, deleteAlbum, dashboard, basicStats, stats, seriesSummary, peopleSummary, publishersSummary, importBdgest, editionAnomalies, exportCollection, persistCoverDecision, applyMetadataResolution } from './db.js';
 import { canonicalIsbn } from './isbn.js';
 import { inspectBdgestCsv } from './csv.js';
 import { verifyLicense, hasFeature } from './license.js';
@@ -63,6 +63,7 @@ export function createBdDeskApp(config, opts={}){
   const metadataCacheTtlMs=Number(config.metadataCacheTtlMs)>0?Number(config.metadataCacheTtlMs):300_000;
   const webhookDispatcher=opts.dispatchWebhookImpl||dispatchWebhook;
   const coverFetcher=opts.coverFetchImpl||fetch;
+  let coverJob={status:'idle',processed:0,resolved:0,unresolved:0,failed:0,startedAt:null,finishedAt:null,lastError:null};
   const getLicense=()=>licenseEnabled?verifyLicense(db.prepare(`SELECT value FROM settings WHERE key='license'`).get()?.value,config.licenseSecret):{valid:false,plan:'free',reason:'free-edition'};
   const premium=(feature)=>hasFeature(getLicense(),feature);
   function authenticateApiKey(req){ const token=bearer(req)||req.headers['x-api-key']; if(!token)return false; const row=db.prepare('SELECT id FROM api_keys WHERE key_hash=? AND revoked_at IS NULL').get(hash(String(token))); if(row)db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(row.id); return Boolean(row); }
@@ -82,7 +83,62 @@ export function createBdDeskApp(config, opts={}){
     metadataCache.set(key,{promise,expiresAt:now+metadataCacheTtlMs});
     try{return await promise}catch(error){if(metadataCache.get(key)?.promise===promise)metadataCache.delete(key);throw error}
   }
+  const coverJobSnapshot=()=>({...coverJob,coverStats:coverResolutionStatus(db)});
+  async function resolveAlbumCover(album){
+    if(!album?.isbn)return {updated:false,reason:'isbn-required',album};
+    const candidates=await metadataFor(album.isbn);
+    const resolution=resolveCandidates(album.isbn,candidates,album);
+    const decision=persistCoverDecision(db,album.id,resolution.cover);
+    return {updated:decision.updated,reason:decision.reason,album:decision.album,resolution};
+  }
+  async function runCoverJob(){
+    const job={status:'running',processed:0,resolved:0,unresolved:0,failed:0,startedAt:new Date().toISOString(),finishedAt:null,lastError:null};
+    coverJob=job;
+    try{
+      while(true){
+        const pending=listPendingCoverAlbums(db,6);
+        if(!pending.length)break;
+        let cursor=0;
+        const worker=async()=>{
+          while(cursor<pending.length){
+            const album=pending[cursor++];
+            try{
+              const result=await resolveAlbumCover(album);
+              job.processed++;
+              if(result.updated)job.resolved++;
+              else job.unresolved++;
+            }catch(error){
+              job.processed++;
+              job.failed++;
+              job.lastError=String(error?.message||error);
+              db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('resolver-error',album.id);
+            }
+          }
+        };
+        await Promise.all([worker(),worker()]);
+      }
+      job.status='completed';
+    }catch(error){
+      job.status='error';
+      job.lastError=String(error?.message||error);
+    }finally{
+      job.finishedAt=new Date().toISOString();
+      coverJob=job;
+    }
+    return coverJobSnapshot();
+  }
+  function startCoverJob(){
+    if(coverJob.status==='running')return false;
+    if(!coverResolutionStatus(db).pending){
+      coverJob={...coverJob,status:'completed',finishedAt:coverJob.finishedAt||new Date().toISOString()};
+      return false;
+    }
+    void runCoverJob();
+    return true;
+  }
   const mcpCtx={dashboard:()=>dashboard(db),listAlbums:o=>listAlbums(db,o),series:()=>seriesSummary(db),updateAlbum:(id,p)=>updateAlbum(db,id,p)};
+
+  if(licenseEnabled)setImmediate(()=>{if(premium('metadata_auto'))startCoverJob()});
 
   return http.createServer(async(req,res)=>{
     try{
@@ -103,7 +159,13 @@ export function createBdDeskApp(config, opts={}){
         const l=getLicense();
         return json(res,200,{edition,plan:l.valid&&l.plan==='premium'?'premium':'free',features:l.valid?l.payload?.features||[]:[],free:['collection','manual_add','scan','search','wishlist','loans','history','export','basic_stats','themes'],premium:['bulk_import','metadata_auto','advanced_stats','api','webhooks','mcp']});
       }
-      if(p==='/api/dashboard') return json(res,200,dashboard(db));
+      if(p==='/api/dashboard') return json(res,200,{...dashboard(db),coverJob:coverJobSnapshot()});
+      if(p==='/api/covers/status'&&req.method==='GET') return json(res,200,coverJobSnapshot());
+      if(p==='/api/covers/resolve'&&req.method==='POST'){
+        if(!premium('metadata_auto'))return json(res,402,{error:'Premium requis',feature:'metadata_auto'});
+        const started=startCoverJob();
+        return json(res,started?202:200,{started,...coverJobSnapshot()});
+      }
       if(p==='/api/stats') return json(res,200,basicStats(db));
       if(p==='/api/stats/advanced'){ if(!premium('advanced_stats'))return json(res,402,{error:'Premium requis',feature:'advanced_stats'}); return json(res,200,stats(db)); }
       if(p==='/api/series') return json(res,200,seriesSummary(db));
@@ -128,7 +190,14 @@ export function createBdDeskApp(config, opts={}){
       if(p==='/api/editions/anomalies'&&req.method==='GET'){ if(!premium('advanced_stats'))return json(res,402,{error:'Premium requis',feature:'advanced_stats'}); return json(res,200,editionAnomalies(db)); }
       if(p==='/api/albums'&&req.method==='POST'){ const a=normalizeAlbumPayload(await jsonBody(req)); const created=createAlbum(db,a); await emit('album.created',created); return json(res,201,created); }
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/resolve$/);
-      if(m&&req.method==='POST'){ const a=getAlbum(db,m[1]); if(!a)return json(res,404,{error:'Album introuvable'}); if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'}); if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false}); const candidates=await metadataFor(a.isbn); const resolution=resolveCandidates(a.isbn,candidates,a); const decision=persistCoverDecision(db,a.id,resolution.cover); return json(res,200,{album:decision.album,resolution,candidates,changed:decision.updated,reason:decision.reason}); }
+      if(m&&req.method==='POST'){
+        const a=getAlbum(db,m[1]);
+        if(!a)return json(res,404,{error:'Album introuvable'});
+        if(a.cover_origin==='user')return json(res,200,{album:a,candidates:[],resolution:{isbn:a.isbn,decision:'preserved-user-cover',fields:{},cover:{url:a.cover_url,source:a.cover_source||'user',confidence:Number(a.cover_confidence)||1,decision:'preserved-user-cover',reason:'user-selected',evidence:[]}},changed:false,reason:'preserve-user-cover'});
+        if(!a.isbn)return json(res,200,{album:a,resolution:{decision:'fallback-editorial',cover:{url:null,decision:'fallback-editorial',reason:'isbn-required'}},changed:false});
+        const result=await resolveAlbumCover(a);
+        return json(res,200,{album:result.album,resolution:result.resolution,candidates:result.resolution?.candidates||[],changed:result.updated,reason:result.reason});
+      }
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/image$/);
       if(m&&req.method==='GET'){
         const a=getAlbum(db,m[1]);
@@ -161,6 +230,7 @@ export function createBdDeskApp(config, opts={}){
         const result=importBdgest(db,csv);
         if(!result.rows)return json(res,400,{error:'Format BDGest introuvable : aucune ligne ALBUM'});
         await emit('collection.imported',result);
+        startCoverJob();
         return json(res,200,result);
       }
       if(p==='/api/keys'&&req.method==='GET'){ if(!premium('api'))return json(res,402,{error:'Premium requis'}); return json(res,200,db.prepare('SELECT id,name,prefix,created_at,last_used_at,revoked_at FROM api_keys ORDER BY id DESC').all()); }

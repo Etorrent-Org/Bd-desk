@@ -6,7 +6,8 @@
 
 - **Gratuit** : collection illimitée, ajout manuel, scan ISBN/EAN, recherche, séries, albums, auteurs, éditeurs, wishlist, prêts, lecture, historique, export JSON et statistiques essentielles.
 - **Premium** : import massif BDGest, enrichissement automatique multi-source, statistiques avancées, détection de variantes/anomalies, API, webhooks HMAC et MCP pour n8n, Notion, Make et agents IA.
-- Le résolveur de métadonnées est générique : il rapproche les fournisseurs par ISBN/EAN exact, conserve la provenance et accepte une couverture automatique uniquement avec une preuve d’identité exploitable. Le catalogue officiel Hachette utilisé par Glénat complète BnF, Google Books et Open Library.
+- Le résolveur de métadonnées est générique : il rapproche les fournisseurs par ISBN/EAN exact, conserve la provenance et accepte une couverture automatique uniquement avec une preuve d'identité exploitable. Le catalogue officiel Hachette utilisé par Glénat complète BnF, Google Books et Open Library.
+- L'accueil affiche jusqu'à huit acquisitions récentes. En édition licenciée, la recherche Premium lance automatiquement ou à la demande un traitement par lots des albums sans couverture ; les images trouvées sont servies via un proxy same-origin vérifié, sans dépendre d'un fichier de couverture statique.
 - Une URL Open Library construite mécaniquement n’est jamais enregistrée comme couverture. Les couvertures existantes issues de l’ancien comportement sont marquées machine et remplaçables ; une couverture saisie par le collectionneur reste protégée.
 - Une fonction Premium n'est jamais seulement masquée dans l'interface : elle est **contrôlée côté serveur** par une licence signée.
 - Le MVP est disponible en deux éditions explicites : `free` par défaut en local, ou `licensed` avec une licence Premium valide. La partie Gold est volontairement hors périmètre.

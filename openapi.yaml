@@ -85,6 +85,17 @@ paths:
     get:
       summary: KPI d'accueil
       responses: {'200': {description: OK}}
+  /api/covers/status:
+    get:
+      summary: État de résolution des couvertures
+      responses: {'200': {description: Compteurs et progression du traitement}}
+  /api/covers/resolve:
+    post:
+      summary: Lancer la recherche Premium des couvertures manquantes
+      responses:
+        '202': {description: Traitement lancé}
+        '200': {description: Aucun traitement nécessaire ou déjà terminé}
+        '402': {description: Premium requis}
   /api/stats:
     get:
       summary: Statistiques essentielles gratuites
@@ -215,6 +226,15 @@ paths:
       responses:
         '200': {description: Décision de couverture et provenance}
         '404': {description: Album introuvable}
+  /api/albums/{id}/cover/image:
+    get:
+      summary: Servir une couverture machine vérifiée en same-origin
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Image de couverture}
+        '404': {description: Couverture machine introuvable}
+        '502': {description: Source d'image indisponible ou invalide}
   /api/export/collection.json:
     get:
       summary: Export JSON gratuit

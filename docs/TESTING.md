@@ -32,6 +32,7 @@ La mesure locale de la passe du 06/09/2026 est de **99,66 % lignes**, **95,41 % 
 - métadonnées, parsers et tolérance aux pannes ;
 - MCP 2026-07-28 et validation des headers/origines ;
 - routes HTTP et headers de sécurité.
+- suivi de couverture (couvertures disponibles, albums en attente, sans ISBN et contrôlés sans résultat) ; recherche Premium par lots et proxy d'image same-origin.
 
 ## Validation de l’import BDGest
 

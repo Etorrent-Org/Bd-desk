@@ -9,7 +9,7 @@
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
   const hostId=host=>host?.dataset?.album||host?.dataset?.detailAlbum||null;
   const trustedCoverUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')}catch{return false}};
-  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin==='machine'||album?.coverOrigin==='machine'||trustedCoverUrl(src);return src&&machine&&id?'/covers/'+encodeURIComponent(id)+'.svg':src||null};
+  const displayUrl=album=>{const src=album?.cover_url||album?.coverUrl;const id=album?.id||album?.albumId;const machine=album?.cover_origin!=='user'&&album?.coverOrigin!=='user'&&(album?.cover_origin==='machine'||album?.coverOrigin==='machine'||trustedCoverUrl(src));return src&&machine&&id?'/api/albums/'+encodeURIComponent(id)+'/cover/image':src||null};
 
   function sourcesFor(isbn){
     const n=canonical(isbn);

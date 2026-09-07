@@ -254,9 +254,36 @@ export function seriesSummary(db) {
 export function dashboard(db) {
   const stats=db.prepare(`SELECT COUNT(*) albums, COUNT(DISTINCT series) series, COALESCE(SUM(CASE WHEN read=1 THEN 1 ELSE 0 END),0) read, COALESCE(SUM(CASE WHEN wishlist=1 THEN 1 ELSE 0 END),0) wishlist, COALESCE(SUM(CASE WHEN first_edition=1 THEN 1 ELSE 0 END),0) eo, COALESCE(SUM(purchase_price),0) spent FROM albums`).get();
   const series=seriesSummary(db); const missing=series.reduce((n,s)=>n+s.missing.length,0);
-  const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC LIMIT 5`).all();
-  const resume=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL) LIMIT 4`).all();
-  return {...stats,missing,recent,resume,readPercent:stats.albums?Math.round(stats.read/stats.albums*100):0};
+  const recent=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at,purchase_date,publisher FROM albums ORDER BY COALESCE(purchase_date,'') DESC, id DESC LIMIT 8`).all();
+  const resume=db.prepare(`SELECT id,title,series,number,cover_url,cover_origin,cover_checked_at FROM albums WHERE read=0 ORDER BY series COLLATE NOCASE, CAST(number AS REAL), id LIMIT 6`).all();
+  return {...stats,missing,recent,resume,coverStats:coverResolutionStatus(db),readPercent:stats.albums?Math.round(stats.read/stats.albums*100):0};
+}
+
+function noCoverWhere() {
+  return `(cover_url IS NULL OR TRIM(cover_url)='')`;
+}
+
+export function coverResolutionStatus(db) {
+  const total=Number(db.prepare('SELECT COUNT(*) c FROM albums').get().c||0);
+  const withCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE NOT ${noCoverWhere()}`).get().c||0);
+  const pending=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user'`).get().c||0);
+  const withoutIsbn=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND (isbn IS NULL OR TRIM(isbn)='')`).get().c||0);
+  const checkedWithoutCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND cover_checked_at IS NOT NULL`).get().c||0);
+  return {
+    total,
+    withCover,
+    missing:Math.max(total-withCover,0),
+    pending,
+    withoutIsbn,
+    checkedWithoutCover,
+    coveragePercent:total?Math.round(withCover/total*100):0
+  };
+}
+
+export function listPendingCoverAlbums(db, limit=8) {
+  const parsed=Number.parseInt(limit,10);
+  const safeLimit=Math.min(Math.max(Number.isInteger(parsed)?parsed:8,1),24);
+  return db.prepare(`SELECT id,isbn,series,number,title,publisher,cover_url,cover_origin,cover_checked_at FROM albums WHERE ${noCoverWhere()} AND isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' ORDER BY id LIMIT ?`).all(safeLimit);
 }
 
 export function stats(db) {
