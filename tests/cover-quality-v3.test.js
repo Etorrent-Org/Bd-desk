@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openDatabase, persistCoverDecision, coverResolutionStatus, prepareCoverResolutionQueue } from '../src/db.js';
+import { openDatabase, persistCoverDecision, coverResolutionStatus, prepareCoverResolutionQueue, listPendingCoverAlbums } from '../src/db.js';
 import { resolveCandidates, mergeCandidates } from '../src/metadata.js';
-import { fetchBdfugueCover, fetchOfficialCoverCandidates } from '../src/official-covers.js';
+import { fetchBdfugueCover, fetchBdfugueCoverByMetadata, fetchBibliographicCoverCandidates, fetchOfficialCoverCandidates } from '../src/official-covers.js';
 
 const isbn='9782344059814';
 
@@ -21,7 +21,7 @@ function bdfugueFetch({lowRes=false,foreign=false}={}){
     if(value.includes('/a/?'))return {
       ok:true,
       url:foreign?'https://example.test/not-bdfugue':'https://www.bdfugue.com/album-test',
-      text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.test/cover.png"></body></html>`
+      text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.com/cover.png"></body></html>`
     };
     if(value.includes('/catalogsearch/result'))return {
       ok:true,
@@ -31,9 +31,31 @@ function bdfugueFetch({lowRes=false,foreign=false}={}){
     if(value==='https://www.bdfugue.com/album-test')return {
       ok:true,
       url:value,
-      text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.test/cover.png"></body></html>`
+      text:async()=>`<html><body>ISBN 978-2-344-05981-4<meta property="og:title" content="Titre &amp; test"><meta property="og:image" content="https://static.bdfugue.com/cover.png"></body></html>`
     };
-    if(value==='https://static.bdfugue.test/cover.png')return {ok:true,arrayBuffer:async()=>image};
+    if(value==='https://static.bdfugue.com/cover.png')return {ok:true,arrayBuffer:async()=>image};
+    return {ok:false,url:value,text:async()=>'',arrayBuffer:async()=>Buffer.alloc(0)};
+  };
+}
+
+function bibliographicFetch(){
+  const image=pngHeader(1000,1500);
+  return async url=>{
+    const value=String(url);
+    if(value.includes('/catalogsearch/result'))return {
+      ok:true,url:value,
+      text:async()=>`<html><body><a href="/nocean-atari-tika">Nocéan tome 1</a><a href="/autre-album">Autre</a></body></html>`
+    };
+    if(value==='https://www.bdfugue.com/nocean-atari-tika')return {
+      ok:true,url:value,
+      text:async()=>`<html><head><meta property="og:title" content="Nocéan Tome 1 - Atari &amp; Tika"><meta property="og:image" content="https://static.bdfugue.com/nocean.jpg"></head><body>Nocéan Tome 1 Atari &amp; Tika Dupuis</body></html>`
+    };
+    if(value==='https://www.bdfugue.com/autre-album')return {
+      ok:true,url:value,
+      text:async()=>`<html><head><meta property="og:title" content="Un autre album"><meta property="og:image" content="https://static.bdfugue.com/autre.jpg"></head><body>Autre série tome 9</body></html>`
+    };
+    if(value==='https://static.bdfugue.com/nocean.jpg')return {ok:true,arrayBuffer:async()=>image};
+    if(value==='https://static.bdfugue.com/autre.jpg')return {ok:true,arrayBuffer:async()=>image};
     return {ok:false,url:value,text:async()=>'',arrayBuffer:async()=>Buffer.alloc(0)};
   };
 }
@@ -82,14 +104,23 @@ test('la file de résolution relance les couvertures absentes et faibles sans to
   assert.notEqual(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(user).cover_checked_at,null);
 });
 
+test('la file inclut maintenant les albums sans ISBN',()=>{
+  const db=openDatabase(':memory:');
+  const id=db.prepare(`INSERT INTO albums(series,number,title,publisher,cover_checked_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get('Nocéan','1','Atari & Tika','Dupuis').id;
+  prepareCoverResolutionQueue(db);
+  const pending=listPendingCoverAlbums(db,10);
+  assert.equal(pending.some(album=>Number(album.id)===Number(id)),true);
+  assert.equal(coverResolutionStatus(db).pending,1);
+});
+
 test('une couverture partenaire BDfugue HD est conservée et une moins bonne ne la remplace pas',()=>{
   const db=openDatabase(':memory:');
   const album=db.prepare(`INSERT INTO albums(isbn,series,title) VALUES(?,?,?) RETURNING id`).get(isbn,'Saga','Titre').id;
-  const first=persistCoverDecision(db,album,{url:'https://static.bdfugue.test/cover.png',source:'bdfugue',confidence:.9,width:900,height:1400,bytes:24000});
+  const first=persistCoverDecision(db,album,{url:'https://static.bdfugue.com/cover.png',source:'bdfugue',confidence:.9,width:900,height:1400,bytes:24000});
   assert.equal(first.updated,true);
   assert.equal(first.album.cover_origin,'partner');
   assert.equal(first.album.cover_status,'verified');
-  const second=persistCoverDecision(db,album,{url:'https://static.bdfugue.test/smaller.png',source:'bdfugue',confidence:.85,width:600,height:900,bytes:12000});
+  const second=persistCoverDecision(db,album,{url:'https://static.bdfugue.com/smaller.png',source:'bdfugue',confidence:.85,width:600,height:900,bytes:12000});
   assert.equal(second.updated,false);
   assert.equal(second.reason,'preserve-better-partner-cover');
 });
@@ -119,6 +150,18 @@ test('BDfugue valide ISBN, page finale et dimensions avant de proposer la couver
   assert.equal(candidates[0].coverHeight,1400);
   assert.equal(candidates[0].coverEvidence.partnerRetailer,true);
   const all=await fetchOfficialCoverCandidates(isbn,{affiliateId:'partner-test',fetchImpl});
+  assert.equal(all.length,1);
+});
+
+test('BDfugue retrouve une couverture par série, titre, tome et éditeur même sans ISBN',async()=>{
+  const album={series:'Nocéan',number:'1',title:'Atari & Tika',publisher:'Dupuis'};
+  const candidates=await fetchBdfugueCoverByMetadata(album,{fetchImpl:bibliographicFetch()});
+  assert.equal(candidates.length,1);
+  assert.equal(candidates[0].source,'bdfugue');
+  assert.equal(candidates[0].coverWidth,1000);
+  assert.equal(candidates[0].coverEvidence.bibliographicMatch,true);
+  assert.ok(candidates[0].coverEvidence.bibliographicScore>=0.9);
+  const all=await fetchBibliographicCoverCandidates(album,{fetchImpl:bibliographicFetch()});
   assert.equal(all.length,1);
 });
 
