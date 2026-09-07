@@ -3,6 +3,7 @@ import * as core from './db-core.js';
 export * from './db-core.js';
 
 export const MIN_COVER_EDGE = 300;
+export const COVER_ESCALATION_EDGE = 700;
 
 function knownLowRes(value) {
   const width=Number(value?.width ?? value?.cover_width ?? 0);
@@ -15,6 +16,16 @@ function knownLowRes(value) {
 function ensureCoverStatus(db){
   const columns=db.prepare('PRAGMA table_info(albums)').all();
   if(!columns.some(column=>column.name==='cover_status')) db.exec('ALTER TABLE albums ADD COLUMN cover_status TEXT');
+}
+
+function escalationWhere(){
+  return `(
+    cover_url IS NULL OR TRIM(cover_url)='' OR
+    (cover_width IS NOT NULL AND cover_width>0 AND (
+      (cover_height IS NOT NULL AND cover_height>0 AND MIN(cover_width,cover_height)<${COVER_ESCALATION_EDGE})
+      OR ((cover_height IS NULL OR cover_height<=0) AND cover_width<${COVER_ESCALATION_EDGE})
+    ))
+  )`;
 }
 
 function migrateCoverQualityV3(db){
@@ -42,14 +53,28 @@ function migrateCoverQualityV3(db){
   db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(key,new Date().toISOString());
 }
 
+function migrateRealCoverEscalationV4(db){
+  ensureCoverStatus(db);
+  const key='real-cover-escalation-v4';
+  if(db.prepare('SELECT 1 FROM settings WHERE key=?').get(key))return;
+  db.prepare(`UPDATE albums
+    SET cover_checked_at=NULL, cover_decision='real-cover-v4-recheck'
+    WHERE isbn IS NOT NULL AND TRIM(isbn)<>''
+      AND COALESCE(cover_origin,'')<>'user'
+      AND ${escalationWhere()}`).run();
+  db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(key,new Date().toISOString());
+}
+
 export function migrate(db){
   core.migrate(db);
   migrateCoverQualityV3(db);
+  migrateRealCoverEscalationV4(db);
 }
 
 export function openDatabase(dbPath=':memory:'){
   const db=core.openDatabase(dbPath);
   migrateCoverQualityV3(db);
+  migrateRealCoverEscalationV4(db);
   return db;
 }
 
@@ -118,6 +143,16 @@ export function coverResolutionStatus(db){
   const withoutIsbn=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND (isbn IS NULL OR TRIM(isbn)='')`).get().c||0);
   const checkedWithoutCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND cover_checked_at IS NOT NULL`).get().c||0);
   return {total,withCover,missing:Math.max(total-withCover,0),lowRes,pending,withoutIsbn,checkedWithoutCover,coveragePercent:total?Math.round(withCover/total*100):0};
+}
+
+export function prepareCoverResolutionQueue(db){
+  ensureCoverStatus(db);
+  db.prepare(`UPDATE albums
+    SET cover_checked_at=NULL, cover_decision='real-cover-retry'
+    WHERE isbn IS NOT NULL AND TRIM(isbn)<>''
+      AND COALESCE(cover_origin,'')<>'user'
+      AND ${escalationWhere()}`).run();
+  return coverResolutionStatus(db);
 }
 
 export function listPendingCoverAlbums(db,limit=8){
