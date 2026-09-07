@@ -250,8 +250,9 @@ export async function fetchBdfugueCoverByMetadata(album,opts={}){
 }
 
 export async function fetchBibliographicCoverCandidates(album,opts={}){
-  // BDbase is queried first because its public search is stable for automated ISBN/title lookup;
-  // BDfugue remains a secondary source but currently rate-limits server-side requests.
+  // A freshly resolved official BnF cover uses the original-image endpoint; avoid a redundant web lookup
+  // when that source is already present but does not expose dimensions in its metadata record.
+  if(album?.cover_url&&album?.cover_source==='bnf'&&!Number(album?.cover_width||0))return [];
   const bdbase=await fetchBdbaseCoverCandidates(album,opts).catch(()=>[]);
   if(bdbase.length)return bdbase;
   return fetchBdfugueCoverByMetadata(album,opts).catch(()=>[]);
