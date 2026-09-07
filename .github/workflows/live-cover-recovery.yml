@@ -24,9 +24,9 @@ jobs:
           READY=0
           for i in $(seq 1 36); do
             CODE="$(curl -fsS --retry 2 --retry-delay 1 "$PREVIEW_URL/cover-sources.js?build=${GITHUB_SHA}" || true)"
-            if printf '%s' "$CODE" | grep -F 'media-participations' >/dev/null; then
+            if printf '%s' "$CODE" | grep -F "source==='bdbase'" >/dev/null; then
               READY=1
-              echo 'New real-cover resolver is live.'
+              echo 'BDbase real-cover resolver is live.'
               break
             fi
             echo "Waiting for AlwaysData deployment ($i/36)..."
