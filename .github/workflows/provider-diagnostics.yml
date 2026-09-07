@@ -8,22 +8,17 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect BDbase search form and exact ISBN results
+      - name: Inspect BDbase exact ISBN search
         run: |
-          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/' -o /tmp/home.html
-          echo '--- FORM ---'
-          grep -n -A8 -B2 '<form action="/recherche"' /tmp/home.html | head -40 || true
-          for PARAM in q query search recherche texte keywords s; do
-            URL="https://www.bdbase.fr/recherche?${PARAM}=9782919069910"
-            CODE="$(curl -sSL -o /tmp/result.html -w '%{http_code}' -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' "$URL")"
-            echo "--- PARAM=$PARAM HTTP=$CODE BYTES=$(wc -c < /tmp/result.html) ---"
-            grep -Eio 'href="/bd/[^"]+"' /tmp/result.html | head -10 || true
-            grep -Eio '9782919069910' /tmp/result.html | head -3 || true
-          done
+          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/recherche?sch=9782919069910' -o /tmp/result.html
+          echo "BYTES=$(wc -c < /tmp/result.html)"
+          grep -n -E -A4 -B4 '9782919069910|Trafika' /tmp/result.html | head -100 || true
+          grep -Eio 'href="/bd/[^"]+"' /tmp/result.html | head -30 || true
+          grep -Eio '(src|data-src)="https://static\.bdbase\.fr/[^"]+"' /tmp/result.html | head -30 || true
 
-      - name: Inspect exact BDbase album HTML and cover markup
+      - name: Inspect BDbase bibliographic search
         run: |
-          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/bd/les-bidochon-tomes-5-et-6-ragots-intimes-en-voyage-organise' -o /tmp/album.html
-          echo "ALBUM_BYTES=$(wc -c < /tmp/album.html)"
-          grep -n -E -A3 -B3 'Couverture de l.album|9782724252675' /tmp/album.html | head -80 || true
-          grep -Eio '(src|data-src|href)="[^"]+\.(jpg|jpeg|png|webp)[^"]*"' /tmp/album.html | head -40 || true
+          curl -fsSL -A 'BD-Desk/1.0 (+https://github.com/Etorrent-Org/Bd-desk)' 'https://www.bdbase.fr/recherche?sch=Blueberry%20Chihuahua%20Pearl' -o /tmp/meta.html
+          echo "META_BYTES=$(wc -c < /tmp/meta.html)"
+          grep -n -E -A4 -B4 'Chihuahua|Blueberry' /tmp/meta.html | head -120 || true
+          grep -Eio 'href="/bd/[^"]+"' /tmp/meta.html | head -30 || true
