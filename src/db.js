@@ -97,12 +97,18 @@ function updateCoverStatus(db,id,album){
   return {...album,cover_status:status};
 }
 
-function isPartnerCover(selection){
-  if(selection?.source!=='bdfugue')return false;
+function supplementalCover(selection){
   try{
-    const url=new URL(String(selection.url||''));
-    return url.protocol==='https:'&&(url.hostname==='bdfugue.com'||url.hostname==='www.bdfugue.com'||url.hostname.endsWith('.bdfugue.com'));
-  }catch{return false}
+    const url=new URL(String(selection?.url||''));
+    if(url.protocol!=='https:')return null;
+    if(selection?.source==='bdfugue'&&(url.hostname==='bdfugue.com'||url.hostname==='www.bdfugue.com'||url.hostname.endsWith('.bdfugue.com'))){
+      return {origin:'partner',source:'bdfugue'};
+    }
+    if(selection?.source==='media-participations'&&url.hostname==='bdi.dlpdomain.com'){
+      return {origin:'machine',source:'media-participations'};
+    }
+  }catch{}
+  return null;
 }
 
 export function persistCoverDecision(db,id,selection={}){
@@ -121,18 +127,19 @@ export function persistCoverDecision(db,id,selection={}){
     return {updated:false,reason:'low-resolution-cover',album:core.getAlbum(db,id)};
   }
 
-  if(isPartnerCover(selection)){
-    const confidence=Number(selection.confidence)||0.82;
+  const supplemental=supplementalCover(selection);
+  if(supplemental){
+    const confidence=Number(selection.confidence)||0.9;
     const oldPixels=Number(current.cover_width||0)*Number(current.cover_height||0);
     const newPixels=Number(selection.width||0)*Number(selection.height||0);
-    if(current.cover_url&&current.cover_origin==='partner'&&oldPixels&&newPixels&&oldPixels>=newPixels&&Number(current.cover_confidence||0)>=confidence){
-      db.prepare(`UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision='partner-no-better-cover',cover_status=? WHERE id=?`).run(knownLowRes(current)?'low_res':'verified',id);
-      return {updated:false,reason:'preserve-better-partner-cover',album:core.getAlbum(db,id)};
+    if(current.cover_url&&['partner','machine'].includes(current.cover_origin)&&oldPixels&&newPixels&&oldPixels>=newPixels&&Number(current.cover_confidence||0)>=confidence){
+      db.prepare(`UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision='supplemental-no-better-cover',cover_status=? WHERE id=?`).run(knownLowRes(current)?'low_res':'verified',id);
+      return {updated:false,reason:'preserve-better-cover',album:core.getAlbum(db,id)};
     }
-    db.prepare(`UPDATE albums SET cover_url=?,cover_origin='partner',cover_source='bdfugue',cover_confidence=?,
+    db.prepare(`UPDATE albums SET cover_url=?,cover_origin=?,cover_source=?,cover_confidence=?,
       cover_width=?,cover_height=?,cover_bytes=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=?,
-      cover_status='verified',updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(selection.url,confidence,selection.width||null,selection.height||null,selection.bytes||null,selection.decision||'verified-partner-source',id);
-    return {updated:true,reason:'partner-cover-selected',album:core.getAlbum(db,id)};
+      cover_status='verified',updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(selection.url,supplemental.origin,supplemental.source,confidence,selection.width||null,selection.height||null,selection.bytes||null,selection.decision||'verified-supplemental-source',id);
+    return {updated:true,reason:'supplemental-cover-selected',album:core.getAlbum(db,id)};
   }
 
   const result=core.persistCoverDecision(db,id,selection);
