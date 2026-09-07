@@ -1,0 +1,16 @@
+name: Live cover snapshot
+on:
+  push:
+    branches: [ops/live-cover-snapshot]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read live cover state
+        run: |
+          curl -fsS https://tatoune.alwaysdata.net/api/covers/status > /tmp/status.json
+          curl -fsS 'https://tatoune.alwaysdata.net/api/albums?limit=500' > /tmp/albums.json
+          cat /tmp/status.json
+          node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums.json','utf8'));const items=d.items||[];const missing=items.filter(a=>!String(a.cover_url||'').trim());const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);console.log('MISSING='+missing.length);console.log('WEAK='+weak.length);console.log('MISSING_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision,source:a.cover_source}))));"
