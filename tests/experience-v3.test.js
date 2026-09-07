@@ -29,7 +29,7 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
 });
 
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
-  const css=await read('public/experience-v3.css');
+  const css=(await read('public/experience-v3-core.css'))+'\n'+(await read('public/experience-v3.css'));
   for(const theme of ['neutral','bd','comics','manga'])assert.match(css,new RegExp('data-theme="' + theme + '"'));
   assert.match(css,/editorial-cover/);
   assert.match(css,/theme-preview/);
