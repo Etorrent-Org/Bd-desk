@@ -1,5 +1,6 @@
 import * as core from './metadata-core.js';
 import { fetchOfficialCoverCandidates } from './official-covers.js';
+import { fetchMediaParticipationsCover } from './publisher-covers.js';
 
 export * from './metadata-core.js';
 // Stable facade export used by runtime/deployment contracts even when provider code lives in metadata-core.
@@ -58,8 +59,12 @@ export async function fetchMetadata(isbn,opts={}){
   if(opts.fetchImpl&&opts.fetchImpl!==globalThis.fetch)return base;
   const provisional=core.resolveCandidates(isbn,base);
   if(!shouldEscalateCover(provisional.cover))return base;
-  try{
-    const extra=await fetchOfficialCoverCandidates(isbn,{fetchImpl:opts.fetchImpl||globalThis.fetch,timeoutMs:opts.timeoutMs});
-    return [...base,...extra];
-  }catch{return base}
+  const fetchImpl=opts.fetchImpl||globalThis.fetch;
+  const [publisherResult,retailerResult]=await Promise.allSettled([
+    fetchMediaParticipationsCover(isbn,{fetchImpl,timeoutMs:opts.timeoutMs}),
+    fetchOfficialCoverCandidates(isbn,{fetchImpl,timeoutMs:opts.timeoutMs})
+  ]);
+  const publisher=publisherResult.status==='fulfilled'?publisherResult.value:[];
+  const retailer=retailerResult.status==='fulfilled'?retailerResult.value:[];
+  return [...base,...publisher,...retailer];
 }

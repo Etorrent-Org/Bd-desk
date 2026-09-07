@@ -122,7 +122,7 @@ test('une couverture partenaire BDfugue HD est conservée et une moins bonne ne 
   assert.equal(first.album.cover_status,'verified');
   const second=persistCoverDecision(db,album,{url:'https://static.bdfugue.com/smaller.png',source:'bdfugue',confidence:.85,width:600,height:900,bytes:12000});
   assert.equal(second.updated,false);
-  assert.equal(second.reason,'preserve-better-partner-cover');
+  assert.equal(second.reason,'preserve-better-cover');
 });
 
 test('BDfugue est interrogé directement sans identifiant partenaire',async()=>{

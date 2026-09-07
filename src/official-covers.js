@@ -33,25 +33,42 @@ function shortEdge(value){
   if(width>0&&height>0)return Math.min(width,height);
   return width>0?width:0;
 }
-function productLinks(html,baseUrl){
+function normalizedProductUrl(value,baseUrl){
+  let absolute;
+  try{absolute=new URL(decodeHtml(value),baseUrl)}catch{return null}
+  if(!isBdfugueUrl(absolute.toString()))return null;
+  const path=absolute.pathname.toLowerCase();
+  const blocked=[
+    '/catalogsearch/','/customer/','/checkout/','/wishlist/','/sales/','/review/','/catalog/category/',
+    '/media/','/serie/','/auteur/','/editeur/','/genre/','/promotions','/nouveautes','/meilleures-ventes',
+    '/contact','/magasins','/blog','/catalogue','/livraison','/conditions-generales'
+  ];
+  if(path==='/'||blocked.some(prefix=>path.startsWith(prefix)))return null;
+  if(/\.(?:jpg|jpeg|png|webp|gif|svg|css|js|pdf)$/i.test(path))return null;
+  absolute.hash='';
+  return absolute.toString();
+}
+function collectProductLinks(html,baseUrl,{preferredOnly=false}={}){
   const result=[];
   const seen=new Set();
-  const pattern=/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi;
+  const pattern=/<a\b([^>]*)\bhref=["']([^"']+)["']([^>]*)>/gi;
   let match;
-  while((match=pattern.exec(String(html||'')))&&result.length<MAX_PRODUCT_PAGES){
-    let absolute;
-    try{absolute=new URL(decodeHtml(match[1]),baseUrl).toString()}catch{continue}
-    if(!isBdfugueUrl(absolute)||seen.has(absolute))continue;
-    const url=new URL(absolute);
-    const path=url.pathname.toLowerCase();
-    if(path==='/'||path.startsWith('/catalogsearch/')||path.startsWith('/customer/')||path.startsWith('/checkout/')||path.startsWith('/wishlist/')||path.startsWith('/sales/')||path.startsWith('/review/')||path.startsWith('/catalog/category/')||path.startsWith('/media/'))continue;
-    url.hash='';
-    const normalized=url.toString();
-    if(seen.has(normalized))continue;
+  while((match=pattern.exec(String(html||'')))){
+    const attrs=`${match[1]||''} ${match[3]||''}`;
+    const preferred=/\b(?:product-item-link|product-item-photo|product-item-name|product-item-info|product-image-photo)\b/i.test(attrs);
+    if(preferredOnly&&!preferred)continue;
+    const normalized=normalizedProductUrl(match[2],baseUrl);
+    if(!normalized||seen.has(normalized))continue;
     seen.add(normalized);
     result.push(normalized);
+    if(result.length>=MAX_PRODUCT_PAGES)break;
   }
   return result;
+}
+function productLinks(html,baseUrl){
+  const preferred=collectProductLinks(html,baseUrl,{preferredOnly:true});
+  const generic=collectProductLinks(html,baseUrl);
+  return [...new Set([...preferred,...generic])].slice(0,MAX_PRODUCT_PAGES);
 }
 async function timedFetch(fetchImpl,url,init={},timeoutMs=9000){
   const controller=new AbortController();
