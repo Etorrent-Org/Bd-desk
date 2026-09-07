@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openDatabase, persistCoverDecision, coverResolutionStatus } from '../src/db.js';
+import { openDatabase, persistCoverDecision, coverResolutionStatus, prepareCoverResolutionQueue } from '../src/db.js';
 import { resolveCandidates, mergeCandidates } from '../src/metadata.js';
 import { fetchBdfugueCover, fetchOfficialCoverCandidates } from '../src/official-covers.js';
 
@@ -67,6 +67,19 @@ test('la base expose les couvertures basse définition séparément',()=>{
   assert.equal(decision.updated,false);
   assert.equal(decision.reason,'low-resolution-cover');
   assert.equal(db.prepare('SELECT cover_url FROM albums WHERE id=?').get(album).cover_url,null);
+});
+
+test('la file de résolution relance les couvertures absentes et faibles sans toucher aux bonnes ni aux manuelles',()=>{
+  const db=openDatabase(':memory:');
+  const missing=db.prepare(`INSERT INTO albums(isbn,series,title,cover_checked_at) VALUES(?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get('9782203237766','Saga','Sans couverture').id;
+  const weak=db.prepare(`INSERT INTO albums(isbn,series,title,cover_url,cover_origin,cover_source,cover_width,cover_height,cover_checked_at) VALUES(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get(isbn,'Saga','Faible','https://books.google.com/weak.jpg','machine','google-books',500,800).id;
+  const good=db.prepare(`INSERT INTO albums(isbn,series,title,cover_url,cover_origin,cover_source,cover_width,cover_height,cover_checked_at) VALUES(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get('9782505064721','Saga','Bonne','https://books.google.com/good.jpg','machine','google-books',900,1400).id;
+  const user=db.prepare(`INSERT INTO albums(isbn,series,title,cover_url,cover_origin,cover_width,cover_height,cover_checked_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get('9782344059814','Saga','Manuelle','https://example.test/user.jpg','user',120,180).id;
+  prepareCoverResolutionQueue(db);
+  assert.equal(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(missing).cover_checked_at,null);
+  assert.equal(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(weak).cover_checked_at,null);
+  assert.notEqual(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(good).cover_checked_at,null);
+  assert.notEqual(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(user).cover_checked_at,null);
 });
 
 test('une couverture partenaire BDfugue HD est conservée et une moins bonne ne la remplace pas',()=>{
