@@ -6,6 +6,7 @@ const SOURCE_PRIORITY = {
   bnf: 55,
   'bnf-intermarc': 54,
   'google-books': 35,
+  inventaire: 28,
   'open-library': 20
 };
 
@@ -44,6 +45,13 @@ export function openLibraryUrl(isbn) {
   u.searchParams.set('isbn', n);
   u.searchParams.set('fields', 'key,title,author_name,publisher,first_publish_year,isbn,cover_i,edition_key,series');
   u.searchParams.set('limit', '5');
+  return u.toString();
+}
+
+export function inventaireUrl(isbn) {
+  const n = canonicalIsbn(isbn);
+  const u = new URL('https://inventaire.io/api/entities/by-uris');
+  u.searchParams.set('uris', 'isbn:' + n);
   return u.toString();
 }
 
@@ -250,10 +258,34 @@ export function parseGoogleBooks(data) {
       pageCount: numeric(v.pageCount),
       series: parsedSeries.series || structured.series || null,
       seriesNumber: item.seriesInfo?.bookDisplayNumber || parsedSeries.seriesNumber || structured.seriesNumber || null,
-      coverUrl: v.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || null,
+      coverUrl: (v.imageLinks?.extraLarge || v.imageLinks?.large || v.imageLinks?.medium || v.imageLinks?.small || v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail)?.replace(/^http:/, 'https:') || null,
+      coverSizeHint: v.imageLinks?.extraLarge ? 1280 : v.imageLinks?.large ? 800 : v.imageLinks?.medium ? 575 : v.imageLinks?.small ? 300 : v.imageLinks?.thumbnail ? 128 : v.imageLinks?.smallThumbnail ? 80 : null,
       identifiers,
       coverIdentifiers: identifiers,
       coverEvidence: coverEvidence('google-books', identifiers, {apiRecord: true})
+    };
+  });
+}
+
+export function parseInventaire(data) {
+  const entities = Object.values(data?.entities || {});
+  return entities.filter(entity => entity?.type === 'edition').map(entity => {
+    const claims = entity.claims || {};
+    const identifiers = canonicalIdentifiers([...(claims['wdt:P212'] || []), ...(claims['wdt:P957'] || [])]);
+    const imagePath = cleanText(entity.image?.url);
+    const coverUrl = imagePath ? new URL(imagePath, 'https://inventaire.io').toString() : null;
+    return {
+      source: 'inventaire',
+      sourceId: entity.uri || entity._id || null,
+      title: cleanText(claims['wdt:P1476']?.[0] || entity.labels?.fromclaims),
+      subtitle: cleanText(claims['wdt:P1680']?.[0]),
+      publishedDate: normalizeDate(claims['wdt:P577']?.[0]),
+      pageCount: numeric(claims['wdt:P1104']?.[0]),
+      authors: [],
+      identifiers,
+      coverIdentifiers: identifiers,
+      coverUrl,
+      coverEvidence: coverUrl ? coverEvidence('inventaire', identifiers, {communityCatalog: true}) : null
     };
   });
 }
@@ -632,6 +664,22 @@ function sourceOrder(a, b) {
     || String(a.sourceId || '').localeCompare(String(b.sourceId || ''));
 }
 
+function coverQualityScore(candidate) {
+  const width = Number(candidate?.coverWidth || candidate?.coverSizeHint || 0);
+  const height = Number(candidate?.coverHeight || 0);
+  const shortest = height ? Math.min(width, height) : width;
+  if (shortest >= 700) return 50;
+  if (shortest >= 450) return 40;
+  if (shortest >= 300) return 30;
+  if (shortest >= 180) return 10;
+  if (shortest > 0) return -30;
+  return 0;
+}
+
+function coverOrder(a, b) {
+  return coverQualityScore(b) - coverQualityScore(a) || sourceOrder(a, b);
+}
+
 function selectCover(evaluated, requested) {
   const eligible = evaluated
     .filter(candidate => candidate.match?.eligible && candidate.coverUrl)
@@ -640,7 +688,7 @@ function selectCover(evaluated, requested) {
       const ids = candidate.match?.identifiers || candidateIdentifiers(candidate);
       return !requested || ids.includes(requested);
     })
-    .sort(sourceOrder);
+    .sort(coverOrder);
   const candidate = eligible[0];
   if (!candidate) {
     return {
@@ -657,6 +705,9 @@ function selectCover(evaluated, requested) {
     source: candidate.source,
     candidateId: candidate.sourceId || null,
     confidence: Math.max(candidate.match.confidence, candidate.coverEvidence?.official ? 0.92 : 0.78),
+    width: Number(candidate.coverWidth || candidate.coverSizeHint) || null,
+    height: Number(candidate.coverHeight) || null,
+    bytes: Number(candidate.coverBytes) || null,
     decision: 'verified-source',
     reason: candidate.coverEvidence?.official ? 'official-catalog-image-with-exact-identifier' : 'provider-image-with-exact-identifier',
     evidence: [{
@@ -740,6 +791,70 @@ function requestWithTimeout(fetchImpl, url, init, timeoutMs) {
   return Promise.resolve(fetchImpl(url, {...init, signal: controller.signal})).finally(() => clearTimeout(timer));
 }
 
+export function imageDimensions(value) {
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value || []);
+  if (buffer.length >= 24 && buffer.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]))) {
+    return {width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20)};
+  }
+  if (buffer.length >= 10 && /^GIF8[79]a$/.test(buffer.subarray(0, 6).toString('ascii'))) {
+    return {width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8)};
+  }
+  if (buffer.length >= 30 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') {
+    const kind = buffer.subarray(12, 16).toString('ascii');
+    if (kind === 'VP8X') return {width: 1 + buffer.readUIntLE(24, 3), height: 1 + buffer.readUIntLE(27, 3)};
+    if (kind === 'VP8 ' && buffer.length >= 30) return {width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff};
+    if (kind === 'VP8L' && buffer.length >= 25) {
+      const bits = buffer.readUInt32LE(21);
+      return {width: 1 + (bits & 0x3fff), height: 1 + ((bits >> 14) & 0x3fff)};
+    }
+  }
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < buffer.length) {
+      if (buffer[offset] !== 0xff) { offset++; continue; }
+      const marker = buffer[offset + 1];
+      if (marker === 0xd8 || marker === 0xd9) { offset += 2; continue; }
+      const length = buffer.readUInt16BE(offset + 2);
+      if (length < 2 || offset + length + 2 > buffer.length) break;
+      if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7) || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+        return {width: buffer.readUInt16BE(offset + 7), height: buffer.readUInt16BE(offset + 5)};
+      }
+      offset += length + 2;
+    }
+  }
+  return null;
+}
+
+async function inspectCover(fetchImpl, url, timeoutMs) {
+  try {
+    const response = await requestWithTimeout(fetchImpl, url, {headers: {'user-agent': USER_AGENT, accept: 'image/*'}}, Math.max(timeoutMs, 15000));
+    if (!response?.ok) return null;
+    const type = String(response.headers?.get?.('content-type') || '').toLowerCase();
+    if (type && !type.startsWith('image/')) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > 10 * 1024 * 1024) return null;
+    const dimensions = imageDimensions(buffer);
+    return dimensions ? {...dimensions, bytes: buffer.length} : null;
+  } catch {
+    return null;
+  }
+}
+
+async function inspectCandidateCovers(candidates, fetchImpl, timeoutMs) {
+  const cache = new Map();
+  await Promise.all(candidates.filter(candidate => candidate.coverUrl).map(async candidate => {
+    let promise = cache.get(candidate.coverUrl);
+    if (!promise) {
+      promise = inspectCover(fetchImpl, candidate.coverUrl, timeoutMs);
+      cache.set(candidate.coverUrl, promise);
+    }
+    const quality = await promise;
+    if (quality) Object.assign(candidate, {coverWidth: quality.width, coverHeight: quality.height, coverBytes: quality.bytes});
+    else candidate.coverUrl = null;
+  }));
+  return candidates;
+}
+
 export async function fetchMetadata(isbn, opts={}) {
   const requested = canonicalIsbn(isbn);
   if (!requested) return [];
@@ -769,6 +884,12 @@ export async function fetchMetadata(isbn, opts={}) {
       parse: response => response.json().then(parseOpenLibrary)
     },
     {
+      source: 'inventaire',
+      url: inventaireUrl(requested),
+      init: {headers: {'user-agent': USER_AGENT, accept: 'application/json'}},
+      parse: response => response.json().then(parseInventaire)
+    },
+    {
       source: 'bnf',
       url: bnfSruUrl(requested),
       init: {headers: {'user-agent': USER_AGENT, accept: 'application/xml,text/xml;q=0.9,*/*;q=0.8'}},
@@ -790,5 +911,7 @@ export async function fetchMetadata(isbn, opts={}) {
       return [];
     }
   }));
-  return settled.flat();
+  const candidates = settled.flat();
+  if (opts.inspectCovers === false || fetchImpl !== globalThis.fetch) return candidates;
+  return inspectCandidateCovers(candidates, fetchImpl, timeoutMs);
 }

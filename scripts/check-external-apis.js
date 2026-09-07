@@ -1,12 +1,14 @@
 import {
   googleBooksUrl,
   openLibraryUrl,
+  inventaireUrl,
   bnfSruUrl,
   bnfIntermarcUrl,
   hachetteSearchUrl,
   hachetteSearchBody,
   parseGoogleBooks,
   parseOpenLibrary,
+  parseInventaire,
   parseBnfDublinCore,
   parseBnfIntermarc,
   parseHachetteSearch
@@ -30,6 +32,7 @@ const tests=[
   },
   {name:'Google Books',url:googleBooksUrl(googleIsbn,googleKey),type:'json',parse:parseGoogleBooks},
   {name:'Open Library',url:openLibraryUrl(openLibraryIsbn),type:'json',parse:parseOpenLibrary},
+  {name:'Inventaire',url:inventaireUrl(referenceIsbn),type:'json',parse:parseInventaire},
   {name:'BnF SRU Dublin Core',url:bnfSruUrl(bnfIsbn),type:'text',parse:parseBnfDublinCore},
   {name:'BnF SRU Intermarc',url:bnfIntermarcUrl(bnfIsbn),type:'text',parse:parseBnfIntermarc}
 ];

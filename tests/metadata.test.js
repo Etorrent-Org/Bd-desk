@@ -5,12 +5,14 @@ import {
   openLibraryCover,
   googleBooksUrl,
   openLibraryUrl,
+  inventaireUrl,
   bnfSruUrl,
   bnfIntermarcUrl,
   bnfCoverUrl,
   hachetteSearchUrl,
   hachetteSearchBody,
   parseGoogleBooks,
+  parseInventaire,
   parseOpenLibrary,
   parseBnfDublinCore,
   parseBnfIntermarc,
@@ -30,11 +32,26 @@ test('URLs fournisseurs exactes',()=>{
   assert.match(openLibraryCover(isbn),/covers\.openlibrary\.org/);
   assert.match(googleBooksUrl(isbn),/q=isbn%3A9782203237766/);
   assert.equal(new URL(openLibraryUrl(isbn)).searchParams.get('isbn'),isbn);
+  assert.equal(new URL(inventaireUrl(isbn)).searchParams.get('uris'),'isbn:'+isbn);
   assert.equal(new URL(bnfSruUrl(isbn)).searchParams.get('query'),'bib.isbn adj "9782203237766"');
   assert.equal(new URL(bnfIntermarcUrl(isbn)).searchParams.get('recordSchema'),'intermarcXchange');
   assert.match(bnfCoverUrl(sweetIsbn),/EAN=9782344059814/);
   assert.equal(hachetteSearchUrl(),'https://api.hachette.fr/search');
   assert.equal(hachetteSearchBody(sweetIsbn).source.query.multi_match.query,sweetIsbn);
+});
+
+test('Google Books sélectionne la meilleure définition disponible',()=>{
+  const x=parseGoogleBooks({items:[{id:'hd',volumeInfo:{title:'T',imageLinks:{thumbnail:'http://thumb',medium:'http://medium',extraLarge:'http://xl'},industryIdentifiers:[{identifier:isbn}]}}]});
+  assert.equal(x[0].coverUrl,'https://xl');
+  assert.equal(x[0].coverSizeHint,1280);
+});
+
+test('Inventaire fournit une couverture liée à l’ISBN exact',()=>{
+  const x=parseInventaire({entities:{'inv:x':{_id:'x',uri:'inv:x',type:'edition',labels:{fromclaims:'Titre'},claims:{'wdt:P212':['978-2-203-23776-6'],'wdt:P1104':[64]},image:{url:'/img/entities/hash'}}}});
+  assert.equal(x[0].source,'inventaire');
+  assert.equal(x[0].coverUrl,'https://inventaire.io/img/entities/hash');
+  assert.deepEqual(x[0].identifiers,[isbn]);
+  assert.equal(x[0].pageCount,64);
 });
 
 test('parse Google Books conserve une couverture issue du record',()=>{
@@ -162,18 +179,18 @@ test('fusion conserve données utilisateur et ne génère pas de couverture méc
   assert.equal(noEvidence.album.coverUrl,undefined);
 });
 
-test('fetchMetadata isole les pannes et interroge cinq fournisseurs en parallèle',async()=>{
+test('fetchMetadata isole les pannes et interroge six fournisseurs en parallèle',async()=>{
   let n=0;
   const fake=async url=>{
     n++;
     if(url.includes('api.hachette'))return{ok:true,json:async()=>sweetHachette};
     if(url.includes('googleapis'))return{ok:true,json:async()=>({items:[{id:'g',volumeInfo:{title:'Google',industryIdentifiers:[{identifier:sweetIsbn}]}}]})};
-    if(url.includes('openlibrary'))throw new Error('down');
+    if(url.includes('openlibrary')||url.includes('inventaire'))throw new Error('down');
     if(url.includes('intermarcXchange'))return{ok:true,text:async()=>fixture('sweet-revenge-intermarc.xml')};
     return{ok:true,text:async()=>fixture('sweet-revenge-bnf.xml')};
   };
   const out=await fetchMetadata(sweetIsbn,{fetchImpl:fake});
-  assert.equal(n,5);
+  assert.equal(n,6);
   assert.equal(out.length,4);
   assert.ok(out.some(x=>x.source==='hachette'));
 });
@@ -181,7 +198,7 @@ test('fetchMetadata isole les pannes et interroge cinq fournisseurs en parallèl
 test('fetchMetadata ignore les réponses HTTP en erreur',async()=>{
   let n=0;
   const out=await fetchMetadata(isbn,{fetchImpl:async()=>{n++;return{ok:false}}});
-  assert.equal(n,5);
+  assert.equal(n,6);
   assert.deepEqual(out,[]);
 });
 

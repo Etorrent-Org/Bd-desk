@@ -23,7 +23,7 @@ function bearer(req){ const h=req.headers.authorization||''; return h.startsWith
 function hash(v){ return crypto.createHash('sha256').update(v).digest('hex'); }
 function randomKey(){ return `bdk_${crypto.randomBytes(24).toString('base64url')}`; }
 
-const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr']);
+const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io']);
 const COVER_MAX_BYTES=10*1024*1024;
 function isTrustedCoverUrl(value){
   try{

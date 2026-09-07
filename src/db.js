@@ -24,6 +24,7 @@ export function migrate(db) {
       page_count INTEGER,
       read INTEGER DEFAULT 0, read_date TEXT, signed INTEGER DEFAULT 0, signed_date TEXT, comment TEXT,
       table_name TEXT, cover_url TEXT, cover_origin TEXT, cover_source TEXT, cover_confidence REAL,
+      cover_width INTEGER, cover_height INTEGER, cover_bytes INTEGER,
       cover_checked_at TEXT, cover_decision TEXT, description TEXT, source TEXT DEFAULT 'manual',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -55,6 +56,9 @@ export function migrate(db) {
   ensureAlbumColumn(db, 'cover_origin', 'TEXT');
   ensureAlbumColumn(db, 'cover_source', 'TEXT');
   ensureAlbumColumn(db, 'cover_confidence', 'REAL');
+  ensureAlbumColumn(db, 'cover_width', 'INTEGER');
+  ensureAlbumColumn(db, 'cover_height', 'INTEGER');
+  ensureAlbumColumn(db, 'cover_bytes', 'INTEGER');
   ensureAlbumColumn(db, 'cover_checked_at', 'TEXT');
   ensureAlbumColumn(db, 'cover_decision', 'TEXT');
   ensureAlbumColumn(db, 'page_count', 'INTEGER');
@@ -85,6 +89,14 @@ export function migrate(db) {
          AND COALESCE(cover_origin,'')<>'user';
     `);
     db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(coverResolverMigration,new Date().toISOString());
+  }
+  const coverQualityMigration='cover-quality-v1';
+  if(!db.prepare('SELECT 1 FROM settings WHERE key=?').get(coverQualityMigration)){
+    db.exec(`
+      UPDATE albums SET cover_checked_at=NULL, cover_decision='quality-recheck'
+       WHERE isbn IS NOT NULL AND TRIM(isbn)<>'' AND COALESCE(cover_origin,'')<>'user';
+    `);
+    db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run(coverQualityMigration,new Date().toISOString());
   }
 }
 
@@ -181,7 +193,8 @@ const MACHINE_COVER_HOSTS = new Set([
   'covers.openlibrary.org',
   'books.google.com',
   'books.googleusercontent.com',
-  'images.hachette-livre.fr'
+  'images.hachette-livre.fr',
+  'inventaire.io'
 ]);
 
 function trustedMachineCover(url) {
@@ -214,10 +227,12 @@ export function persistCoverDecision(db,id,selection={}) {
   const replaceable=!currentUrl||current.cover_origin==='machine'||oldIsMechanical;
   if(!replaceable)return {updated:false,reason:'preserve-existing-cover',album:current};
   const confidence=Number(selection.confidence)||0;
-  if(current.cover_origin==='machine'&&Number(current.cover_confidence||0)>confidence&&currentUrl!==selection.url) {
+  const oldPixels=Number(current.cover_width||0)*Number(current.cover_height||0);
+  const newPixels=Number(selection.width||0)*Number(selection.height||0);
+  if(current.cover_origin==='machine'&&Number(current.cover_confidence||0)>confidence&&currentUrl!==selection.url&&(!newPixels||oldPixels>=newPixels)) {
     return {updated:false,reason:'preserve-higher-confidence-cover',album:current};
   }
-  db.prepare('UPDATE albums SET cover_url=?,cover_origin=?,cover_source=?,cover_confidence=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(selection.url,'machine',selection.source||'metadata-resolver',confidence,selection.decision||'verified-source',id);
+  db.prepare('UPDATE albums SET cover_url=?,cover_origin=?,cover_source=?,cover_confidence=?,cover_width=?,cover_height=?,cover_bytes=?,cover_checked_at=CURRENT_TIMESTAMP,cover_decision=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(selection.url,'machine',selection.source||'metadata-resolver',confidence,selection.width||null,selection.height||null,selection.bytes||null,selection.decision||'verified-source',id);
   recordProvenance(db,id,[{field:'coverUrl',source:selection.source||'metadata-resolver',confidence,value:selection.url}]);
   return {updated:true,reason:'machine-cover-selected',album:getAlbum(db,id)};
 }
@@ -282,7 +297,7 @@ function noCoverWhere() {
 export function coverResolutionStatus(db) {
   const total=Number(db.prepare('SELECT COUNT(*) c FROM albums').get().c||0);
   const withCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE NOT ${noCoverWhere()}`).get().c||0);
-  const pending=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user'`).get().c||0);
+  const pending=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user'`).get().c||0);
   const withoutIsbn=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND (isbn IS NULL OR TRIM(isbn)='')`).get().c||0);
   const checkedWithoutCover=Number(db.prepare(`SELECT COUNT(*) c FROM albums WHERE ${noCoverWhere()} AND cover_checked_at IS NOT NULL`).get().c||0);
   return {
@@ -299,7 +314,7 @@ export function coverResolutionStatus(db) {
 export function listPendingCoverAlbums(db, limit=8) {
   const parsed=Number.parseInt(limit,10);
   const safeLimit=Math.min(Math.max(Number.isInteger(parsed)?parsed:8,1),24);
-  return db.prepare(`SELECT id,isbn,series,number,title,publisher,cover_url,cover_origin,cover_checked_at FROM albums WHERE ${noCoverWhere()} AND isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' ORDER BY id LIMIT ?`).all(safeLimit);
+  return db.prepare(`SELECT id,isbn,series,number,title,publisher,cover_url,cover_origin,cover_width,cover_height,cover_checked_at FROM albums WHERE isbn IS NOT NULL AND TRIM(isbn)<>'' AND cover_checked_at IS NULL AND COALESCE(cover_origin,'')<>'user' ORDER BY id LIMIT ?`).all(safeLimit);
 }
 
 export function stats(db) {
