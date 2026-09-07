@@ -70,12 +70,12 @@ test('effacer une couverture manuelle réouvre la résolution machine',()=>{
 test('le suivi des couvertures distingue les albums à rechercher, couverts et sans ISBN',()=>{
   const db=openDatabase(':memory:');
   const pending=createAlbum(db,{isbn:'9782203237766',series:'Saga',title:'À rechercher'});
-  createAlbum(db,{series:'Sans ISBN',title:'Identité éditoriale'});
+  const noIsbn=createAlbum(db,{series:'Sans ISBN',title:'Identité éditoriale'});
   const covered=createAlbum(db,{isbn:'9782344059814',series:'Couverte',title:'Déjà couverte',coverUrl:'https://example.test/user.jpg'});
   const checked=createAlbum(db,{isbn:'9782203237766',series:'Introuvable',title:'Déjà contrôlée'});
   db.prepare('UPDATE albums SET cover_checked_at=CURRENT_TIMESTAMP,cover_decision=? WHERE id=?').run('no-trusted-cover',checked.id);
-  assert.deepEqual(coverResolutionStatus(db),{total:4,withCover:1,missing:3,lowRes:0,pending:1,withoutIsbn:1,checkedWithoutCover:1,coveragePercent:25});
-  assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[pending.id]);
+  assert.deepEqual(coverResolutionStatus(db),{total:4,withCover:1,missing:3,lowRes:0,pending:2,withoutIsbn:1,checkedWithoutCover:1,coveragePercent:25});
+  assert.deepEqual(listPendingCoverAlbums(db).map(album=>album.id),[pending.id,noIsbn.id]);
   assert.equal(getAlbum(db,covered.id).cover_origin,'user');
 });
 test('migration v2 retire les couvertures BnF machine et relance les contrôles sans résultat',()=>{
