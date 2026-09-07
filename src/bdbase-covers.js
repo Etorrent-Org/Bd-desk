@@ -75,13 +75,13 @@ async function inspectImage(fetchImpl,url,timeoutMs){
 function searchLinks(html,album){
   const targetTitle=album?.title||'',targetSeries=album?.series||'',targetNumber=album?.number||'';
   const result=[];const seen=new Set();
-  const re=/<a\b[^>]*\bhref=["'](\/bd\/[^"'#?]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const re=/<a\b[^>]*\bhref=["'](\/(?:bd|comics)\/[^"'#?]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
   while((match=re.exec(String(html||'')))){
     const path=decodeHtml(match[1]);
     if(path==='/bd/genres'||path.startsWith('/bd/genres/'))continue;
     const url=new URL(path,BASE).toString();if(seen.has(url))continue;seen.add(url);
-    const label=visibleText(match[2]);const slug=path.replace(/^\/bd\//,'').replace(/-/g,' ');
+    const label=visibleText(match[2]);const slug=path.replace(/^\/(?:bd|comics)\//,'').replace(/-/g,' ');
     const titleScore=Math.max(similarity(targetTitle,label)||0,similarity(targetTitle,slug)||0);
     const seriesScore=Math.max(similarity(targetSeries,label)||0,similarity(targetSeries,slug)||0);
     const numberScore=targetNumber&&new RegExp(`(?:tome|volume|vol)?\\s*${String(targetNumber).replace(/[^0-9a-z]/gi,'')}(?:\\b|$)`,'i').test(slug)?1:0;
