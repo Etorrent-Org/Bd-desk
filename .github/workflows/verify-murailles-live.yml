@@ -1,0 +1,44 @@
+name: Verify Murailles real cover live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-murailles-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PREVIEW_URL: https://tatoune.alwaysdata.net
+    steps:
+      - name: Verify Murailles invisibles tome 2 renders a real image
+        run: |
+          curl -fsS --retry 10 --retry-delay 2 --retry-all-errors "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/albums.json','utf8'));
+          const a=(d.items||[]).find(x=>String(x.isbn||'').replace(/[^0-9X]/gi,'')==='9782205208412');
+          if(!a)throw new Error('Murailles invisibles Tome 2 introuvable');
+          console.log('ALBUM='+JSON.stringify({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,cover_url:a.cover_url,cover_origin:a.cover_origin,cover_source:a.cover_source,cover_width:a.cover_width,cover_height:a.cover_height,cover_decision:a.cover_decision,cover_status:a.cover_status}));
+          fs.writeFileSync('/tmp/album-id.txt',String(a.id));
+          NODE
+          ID="$(cat /tmp/album-id.txt)"
+          CODE="$(curl -sS --max-time 25 -D /tmp/headers -o /tmp/cover -w '%{http_code}' "$PREVIEW_URL/api/albums/$ID/cover/image" || true)"
+          if [ "$CODE" != 200 ]; then
+            echo "First proxy attempt HTTP=$CODE; forcing resolution"
+            curl -fsS --retry 3 --retry-delay 2 --request POST "$PREVIEW_URL/api/albums/$ID/cover/resolve" | tee /tmp/resolve.json
+            sleep 5
+            CODE="$(curl -sS --max-time 25 -D /tmp/headers -o /tmp/cover -w '%{http_code}' "$PREVIEW_URL/api/albums/$ID/cover/image" || true)"
+          fi
+          echo "MURAILLES_T2_HTTP=$CODE"
+          test "$CODE" = 200
+          grep -i '^content-type: image/' /tmp/headers
+          file -b --mime-type /tmp/cover | tee /tmp/mime
+          grep -F 'image/' /tmp/mime >/dev/null
+          test -s /tmp/cover
+          echo "MURAILLES_T2_BYTES=$(wc -c < /tmp/cover)"
