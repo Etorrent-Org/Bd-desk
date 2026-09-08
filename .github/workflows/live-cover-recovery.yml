@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: live-cover-recovery
+  cancel-in-progress: true
+
 jobs:
   recover:
     runs-on: ubuntu-latest
@@ -19,14 +23,16 @@ jobs:
     env:
       PREVIEW_URL: https://tatoune.alwaysdata.net
     steps:
-      - name: Wait for the new resolver deployment
+      - name: Wait for the renderable-cover deployment
         run: |
           READY=0
           for i in $(seq 1 36); do
             CODE="$(curl -fsS --retry 2 --retry-delay 1 "$PREVIEW_URL/cover-sources.js?build=${GITHUB_SHA}" || true)"
-            if printf '%s' "$CODE" | grep -F "source==='bdbase'" >/dev/null; then
+            if printf '%s' "$CODE" | grep -F 'bdi.dlpdomain.com' >/dev/null \
+              && printf '%s' "$CODE" | grep -F 'static.bdbase.fr' >/dev/null \
+              && printf '%s' "$CODE" | grep -F 'void recoverImage(image)' >/dev/null; then
               READY=1
-              echo 'BDbase real-cover resolver is live.'
+              echo 'Renderable-cover recovery is live.'
               break
             fi
             echo "Waiting for AlwaysData deployment ($i/36)..."
@@ -72,9 +78,43 @@ jobs:
             node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-pass.json','utf8'));const missing=(d.items||[]).filter(a=>!String(a.cover_url||'').trim());fs.writeFileSync('/tmp/missing-ids.txt',missing.map(a=>a.id).join('\n'));console.log('MISSING_AFTER_PASS='+missing.length);"
           done
 
+      - name: Verify every stored automatic cover is renderable
+        run: |
+          curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-render.json
+          node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-render.json','utf8'));const items=d.items||[];const rows=items.filter(a=>['machine','partner'].includes(a.cover_origin)&&String(a.cover_url||'').trim());fs.writeFileSync('/tmp/render-ids.txt',rows.map(a=>a.id).join('\n'));fs.writeFileSync('/tmp/render-meta.json',JSON.stringify(Object.fromEntries(rows.map(a=>[a.id,{isbn:a.isbn,series:a.series,number:a.number,title:a.title,source:a.cover_source}]))));console.log('RENDER_CHECK_COUNT='+rows.length);"
+          : > /tmp/render-failures.txt
+          if [ -s /tmp/render-ids.txt ]; then
+            xargs -r -P4 -I{} sh -c 'code=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$0/api/albums/$1/cover/image" || true); [ "$code" = 200 ] || echo "$1" >> /tmp/render-failures.txt' "$PREVIEW_URL" {} < /tmp/render-ids.txt
+          fi
+          sort -u /tmp/render-failures.txt -o /tmp/render-failures.txt
+          FIRST=$(wc -l < /tmp/render-failures.txt | tr -d ' ')
+          echo "RENDER_FAILURES_FIRST_PASS=$FIRST"
+          if [ "$FIRST" -gt 0 ]; then
+            node -e "const fs=require('fs');const meta=JSON.parse(fs.readFileSync('/tmp/render-meta.json','utf8'));const ids=fs.readFileSync('/tmp/render-failures.txt','utf8').trim().split(/\s+/).filter(Boolean);console.log('RENDER_FAILURES_JSON='+JSON.stringify(ids.map(id=>({id,...meta[id]}))))"
+            xargs -r -P3 -I{} sh -c 'curl -fsS --retry 2 --retry-delay 1 --request POST "$0/api/albums/$1/cover/resolve" >/dev/null || true' "$PREVIEW_URL" {} < /tmp/render-failures.txt
+            sleep 12
+            : > /tmp/render-failures-final.txt
+            xargs -r -P3 -I{} sh -c 'code=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$0/api/albums/$1/cover/image" || true); [ "$code" = 200 ] || echo "$1" >> /tmp/render-failures-final.txt' "$PREVIEW_URL" {} < /tmp/render-failures.txt
+            sort -u /tmp/render-failures-final.txt -o /tmp/render-failures-final.txt
+            FINAL=$(wc -l < /tmp/render-failures-final.txt | tr -d ' ')
+          else
+            FINAL=0
+          fi
+          echo "RENDER_FAILURES_FINAL=$FINAL"
+          test "$FINAL" -eq 0
+
+      - name: Verify Murailles invisibles tome 2 live
+        run: |
+          curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-murailles.json
+          ID="$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-murailles.json','utf8'));const a=(d.items||[]).find(x=>String(x.isbn||'').replace(/[^0-9X]/gi,'')==='9782205208412');process.stdout.write(a?String(a.id):'')")"
+          test -n "$ID"
+          CODE="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$PREVIEW_URL/api/albums/$ID/cover/image" || true)"
+          echo "MURAILLES_T2_ID=$ID HTTP=$CODE"
+          test "$CODE" = 200
+
       - name: Final cover audit
         if: always()
         run: |
           curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/albums?limit=500" > /tmp/albums-final.json
           curl -fsS --retry 5 --retry-delay 2 "$PREVIEW_URL/api/covers/status" > /tmp/status-final.json
-          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('/tmp/albums-final.json','utf8'));const status=JSON.parse(fs.readFileSync('/tmp/status-final.json','utf8'));const items=data.items||[];const missing=items.filter(a=>!String(a.cover_url||'').trim());const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);console.log('FINAL_STATUS='+JSON.stringify(status));console.log('MISSING_FINAL='+missing.length);console.log('WEAK_FINAL='+weak.length);console.log('MISSING_FINAL_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));console.log('WEAK_FINAL_JSON='+JSON.stringify(weak.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,width:a.cover_width,height:a.cover_height,source:a.cover_source}))));"
+          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('/tmp/albums-final.json','utf8'));const status=JSON.parse(fs.readFileSync('/tmp/status-final.json','utf8'));const items=data.items||[];const missing=items.filter(a=>!String(a.cover_url||'').trim());const weak=items.filter(a=>a.cover_url&&a.cover_origin!=='user'&&Number(a.cover_width||0)>0&&Math.min(Number(a.cover_width||0),Number(a.cover_height||a.cover_width||0))<700);console.log('FINAL_STATUS='+JSON.stringify(status));console.log('MISSING_FINAL='+missing.length);console.log('WEAK_FINAL='+weak.length);console.log('MISSING_FINAL_JSON='+JSON.stringify(missing.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,decision:a.cover_decision}))));console.log('WEAK_FINAL_JSON='+JSON.stringify(weak.map(a=>({id:a.id,isbn:a.isbn,series:a.series,number:a.number,title:a.title,publisher:a.publisher,width:a.cover_width,height:a.cover_height,source:a.cover_source}))));if(missing.length)process.exitCode=1;"
