@@ -1,0 +1,89 @@
+/* BD Desk typography V1
+   Goal: calm, readable editorial hierarchy. No external font dependency and no heavy card typography. */
+:root{
+  --font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --font-display:"Avenir Next","Segoe UI Variable Display",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-editorial:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+  --font-comics:"Avenir Next Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-manga:"Hiragino Sans","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  --font:var(--font-ui);
+  --display:var(--font-display);
+}
+
+body[data-theme="neutral"]{--display:var(--font-display)}
+body[data-theme="bd"]{--display:var(--font-editorial)}
+body[data-theme="comics"]{--display:var(--font-comics)}
+body[data-theme="manga"]{--display:var(--font-manga)}
+
+html,body,button,input,select,textarea{font-family:var(--font-ui)!important}
+body{font-weight:400!important;letter-spacing:0!important}
+
+/* Navigation and chrome */
+.brand-copy b{font-weight:600!important;letter-spacing:-.02em}
+.brand-copy small{font-weight:400!important;letter-spacing:.11em!important}
+.profile strong{font-weight:500!important}
+.sidebar nav button,.side-foot button{font-weight:400!important;letter-spacing:0!important}
+.search input{font-weight:400!important}
+.btn{font-weight:500!important;letter-spacing:0!important}
+
+/* Page hierarchy */
+.page-head h1{font-family:var(--display)!important;font-weight:600!important;letter-spacing:-.025em!important;line-height:1.15!important}
+.page-head p{font-weight:400!important;letter-spacing:0!important}
+.section-title h2{font-family:var(--display)!important;font-weight:600!important;letter-spacing:-.015em!important}
+
+/* Dashboard */
+.kpi small{font-weight:400!important;letter-spacing:0!important}
+.kpi strong{font-weight:600!important;letter-spacing:-.025em!important}
+.kpi .delta{font-weight:400!important;letter-spacing:0!important}
+
+/* Catalog cards: series is readable, never shouted. */
+.album-card h3{
+  font-family:var(--font-ui)!important;
+  font-size:12px!important;
+  font-weight:500!important;
+  line-height:1.28!important;
+  letter-spacing:-.005em!important;
+  text-transform:none!important;
+  white-space:normal!important;
+  display:-webkit-box!important;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  overflow:hidden!important;
+  text-overflow:clip!important;
+  margin:9px 0 3px!important;
+}
+.album-card p{font-size:11.5px!important;font-weight:400!important;line-height:1.42!important;letter-spacing:0!important;margin:0!important}
+.album-card .series{font-weight:400!important;color:color-mix(in srgb,var(--ui-ink) 88%,var(--ui-muted))!important}
+
+/* Lists and details */
+.resume strong,.series-card strong,.person-card strong,.loan-row b,.history-row b{font-weight:500!important}
+.stat-card strong{font-weight:600!important;letter-spacing:-.02em!important}
+.detail-body dd{font-weight:400!important}
+.detail-body dt,.field label{font-weight:400!important}
+.modal-card h2{font-family:var(--display)!important;font-weight:600!important;letter-spacing:-.015em!important}
+.theme-choice b{font-weight:500!important}
+.badge{font-weight:500!important;letter-spacing:0!important}
+
+/* Fallback remains legible if a source temporarily fails, but never mimics a loud cover. */
+.cover-kicker{font-weight:500!important}
+.cover-title{font-weight:600!important;letter-spacing:-.02em!important}
+.cover-subtitle{font-weight:400!important}
+.cover-number{font-weight:600!important}
+
+/* Theme personality comes from type family and color, not artificial bold/uppercase. */
+body[data-theme="comics"] .page-head h1,
+body[data-theme="comics"] .section-title h2{
+  text-transform:none!important;
+  font-style:normal!important;
+  letter-spacing:-.015em!important;
+}
+body[data-theme="bd"] .page-head h1,
+body[data-theme="bd"] .section-title h2{font-weight:500!important}
+body[data-theme="manga"] .page-head h1,
+body[data-theme="manga"] .section-title h2{font-weight:500!important}
+
+@media(max-width:720px){
+  .album-card h3{font-size:11.5px!important;line-height:1.25!important;margin-top:7px!important}
+  .album-card p{font-size:11px!important}
+  .page-head h1{font-size:22px!important;font-weight:600!important}
+}
