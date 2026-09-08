@@ -6,6 +6,7 @@ const BASE='https://www.bdbase.fr';
 const STATIC_HOST='static.bdbase.fr';
 const MAX_IMAGE_BYTES=10*1024*1024;
 const MIN_COVER_EDGE=300;
+const TARGET_COVER_EDGE=700;
 const MAX_PAGES=10;
 
 function decodeHtml(value){return String(value||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>')}
@@ -28,7 +29,7 @@ function catalogIdentifier(value){
   return /^\d{13}$/.test(raw)?raw:null;
 }
 function h1(html){const match=String(html||'').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);return match?visibleText(match[1]):''}
-function shortEdge(dimensions){const w=Number(dimensions?.width||0),h=Number(dimensions?.height||0);return w&&h?Math.min(w,h):w||0}
+function shortEdge(dimensions){const w=Number(dimensions?.width||dimensions?.coverWidth||0),h=Number(dimensions?.height||dimensions?.coverHeight||0);return w&&h?Math.min(w,h):w||0}
 function trustedImage(value){try{const url=new URL(String(value||''));return url.protocol==='https:'&&url.hostname===STATIC_HOST&&!url.pathname.includes('/thumbs/')&&/\/couvertures\//.test(url.pathname)}catch{return false}}
 function fullCoverUrls(html){
   const result=[];
@@ -176,10 +177,22 @@ async function bibliographicCandidates(album,fetchImpl,timeoutMs){
   return found.sort((a,b)=>Number(b.coverEvidence?.bibliographicScore||0)-Number(a.coverEvidence?.bibliographicScore||0)).slice(0,3);
 }
 
+function shouldYieldToHigherQualitySource(album,candidates){
+  if(album?.cover_source!=='bdbase')return false;
+  const currentEdge=shortEdge({width:album?.cover_width,height:album?.cover_height});
+  if(!currentEdge||currentEdge>=TARGET_COVER_EDGE)return false;
+  const best=Math.max(0,...candidates.map(shortEdge));
+  return best>0&&best<TARGET_COVER_EDGE;
+}
+
 export async function fetchBdbaseCoverCandidates(album,opts={}){
   if(!album||(!album.isbn&&!album.title&&!album.series))return [];
   const fetchImpl=opts.fetchImpl||globalThis.fetch;
   const exact=await exactIdentifierCandidate(album,fetchImpl,opts.timeoutMs);
-  if(exact)return [exact];
-  return bibliographicCandidates(album,fetchImpl,opts.timeoutMs);
+  if(exact){
+    const candidates=[exact];
+    return shouldYieldToHigherQualitySource(album,candidates)?[]:candidates;
+  }
+  const candidates=await bibliographicCandidates(album,fetchImpl,opts.timeoutMs);
+  return shouldYieldToHigherQualitySource(album,candidates)?[]:candidates;
 }

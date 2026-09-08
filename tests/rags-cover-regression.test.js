@@ -35,3 +35,12 @@ for(const [ean,tome] of [['3770013604065','1'],['3770013604577','2']]){
     assert.equal(candidates[0].coverWidth,650);
   });
 }
+
+test('une couverture BDbase déjà présente sous 700 px laisse la main à BDfugue / éditeur',async()=>{
+  const ean='3770013604065';
+  const candidates=await fetchBdbaseCoverCandidates({
+    isbn:ean,series:'Rags',number:'1',title:'Tome 1',publisher:'Alayone Comics',
+    cover_source:'bdbase',cover_width:650,cover_height:900
+  },{fetchImpl:mockFetch(ean,'1')});
+  assert.deepEqual(candidates,[]);
+});
