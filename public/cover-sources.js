@@ -1,9 +1,14 @@
 (()=>{
   const queued=new Set();
   const completed=new Set();
+  const retryAfter=new Map();
+  const retryCount=new Map();
+  const retryTimers=new Map();
   const queue=[];
   let active=0;
   const MAX_CONCURRENCY=2;
+  const RETRY_DELAY_MS=30000;
+  const MAX_AUTOMATIC_RETRIES=2;
   const text=value=>String(value??'').trim();
   const canonical=value=>text(value).replace(/[^0-9X]/gi,'').toUpperCase();
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
@@ -15,6 +20,40 @@
     const automated=album?.cover_origin!=='user'&&album?.coverOrigin!=='user'&&(album?.cover_origin==='machine'||album?.coverOrigin==='machine'||album?.cover_origin==='partner'||album?.coverOrigin==='partner'||trustedProxyUrl(src));
     return src&&automated&&id&&trustedProxyUrl(src)?'/api/albums/'+encodeURIComponent(id)+'/cover/image':src||null;
   };
+  const retryAllowed=id=>!retryAfter.has(id)||retryAfter.get(id)<=Date.now();
+
+  function clearRetry(id){
+    retryAfter.delete(id);
+    retryCount.delete(id);
+    const timer=retryTimers.get(id);
+    if(timer)clearTimeout(timer);
+    retryTimers.delete(id);
+  }
+
+  function scheduleRetry(id){
+    if(!id||retryTimers.has(id))return;
+    const count=(retryCount.get(id)||0)+1;
+    retryCount.set(id,count);
+    if(count>MAX_AUTOMATIC_RETRIES)return;
+    retryAfter.set(id,Date.now()+RETRY_DELAY_MS);
+    const timer=setTimeout(()=>{
+      retryTimers.delete(id);
+      retryAfter.delete(id);
+      scan();
+    },RETRY_DELAY_MS);
+    retryTimers.set(id,timer);
+  }
+
+  function markResult(id,ok){
+    if(ok){
+      completed.add(id);
+      clearRetry(id);
+    }else{
+      completed.delete(id);
+      scheduleRetry(id);
+    }
+    return ok;
+  }
 
   function sourcesFor(isbn){
     const n=canonical(isbn);
@@ -119,31 +158,38 @@
     const host=image?.closest?.('[data-album],[data-detail-album]')||document.getElementById('drawer');
     const id=hostId(host)||document.getElementById('drawer')?.dataset?.albumId;
     if(!id)return Boolean(makeEditorial(image));
-    if(completed.has(id))return false;
-    completed.add(id);
-    return recoverHost(host,image);
+    completed.delete(id);
+    queued.delete(id);
+    clearRetry(id);
+    const ok=await recoverHost(host,image);
+    return markResult(id,ok);
   }
 
   async function hydrate(host){
     const id=hostId(host);
-    if(!id||completed.has(id))return;
+    if(!id||completed.has(id)||!retryAllowed(id))return false;
     const node=host.querySelector('.placeholder,.cover-fallback,.editorial-cover');
-    if(!node)return;
-    completed.add(id);
-    await recoverHost(host,node);
+    if(!node)return false;
+    const ok=await recoverHost(host,node);
+    return markResult(id,ok);
   }
 
   function pump(){
     while(active<MAX_CONCURRENCY&&queue.length){
       const host=queue.shift();
+      const id=hostId(host);
       active++;
-      hydrate(host).finally(()=>{active--;pump()});
+      hydrate(host).finally(()=>{
+        if(id)queued.delete(id);
+        active--;
+        pump();
+      });
     }
   }
 
   function enqueue(host){
     const id=hostId(host);
-    if(!id||queued.has(id)||completed.has(id))return;
+    if(!id||queued.has(id)||completed.has(id)||!retryAllowed(id))return;
     queued.add(id);
     queue.push(host);
     pump();
@@ -182,7 +228,10 @@
     if(!(image instanceof HTMLImageElement)||!image.classList.contains('cover-image'))return;
     void recoverImage(image);
   },true);
-  addEventListener('pageshow',()=>scan());
+  addEventListener('pageshow',()=>{
+    retryAfter.clear();
+    scan();
+  });
   document.addEventListener('DOMContentLoaded',()=>scan(),{once:true});
   scan();
 

@@ -48,3 +48,13 @@ test('le récupérateur navigateur intercepte les erreurs image et connaît les 
   assert.match(js,/bdi\.dlpdomain\.com/);
   assert.match(js,/static\.bdbase\.fr/);
 });
+
+test('une couverture cassée peut être retentée sans boucle infinie ni verrouillage définitif',()=>{
+  const js=fs.readFileSync(new URL('../public/cover-sources.js',import.meta.url),'utf8');
+  assert.match(js,/const RETRY_DELAY_MS=30000/);
+  assert.match(js,/const MAX_AUTOMATIC_RETRIES=2/);
+  assert.match(js,/completed\.delete\(id\)/);
+  assert.match(js,/queued\.delete\(id\)/);
+  assert.match(js,/scheduleRetry\(id\)/);
+  assert.match(js,/if\(ok\)\{\s*completed\.add\(id\)/);
+});
