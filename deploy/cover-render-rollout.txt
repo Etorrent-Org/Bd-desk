@@ -1,0 +1,2 @@
+2026-09-08
+Rollout marker for the renderable-cover proxy fix. Safe to remove after the AlwaysData deployment is verified.
