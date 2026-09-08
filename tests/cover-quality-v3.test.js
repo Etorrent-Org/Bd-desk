@@ -104,6 +104,20 @@ test('la file de résolution relance les couvertures absentes et faibles sans to
   assert.notEqual(db.prepare('SELECT cover_checked_at FROM albums WHERE id=?').get(user).cover_checked_at,null);
 });
 
+test('une couverture faible conservée faute de mieux sort de la file qualité',()=>{
+  const db=openDatabase(':memory:');
+  const id=db.prepare(`INSERT INTO albums(isbn,series,title,cover_url,cover_origin,cover_source,cover_confidence,cover_width,cover_height,cover_checked_at) VALUES(?,?,?,?,?,?,?,?,?,NULL) RETURNING id`).get(isbn,'Saga','Faible mais réelle','https://books.google.com/current.jpg','machine','google-books',.95,500,800).id;
+  assert.equal(coverResolutionStatus(db).pending,1);
+  const result=persistCoverDecision(db,id,{url:'https://books.google.com/worse.jpg',source:'google-books',confidence:.7,width:450,height:700,decision:'verified-source'});
+  assert.equal(result.updated,false);
+  assert.equal(result.reason,'preserve-higher-confidence-cover');
+  const row=db.prepare('SELECT cover_checked_at,cover_decision,cover_url FROM albums WHERE id=?').get(id);
+  assert.notEqual(row.cover_checked_at,null);
+  assert.equal(row.cover_decision,'quality-best-available');
+  assert.equal(row.cover_url,'https://books.google.com/current.jpg');
+  assert.equal(coverResolutionStatus(db).pending,0);
+});
+
 test('la file inclut maintenant les albums sans ISBN',()=>{
   const db=openDatabase(':memory:');
   const id=db.prepare(`INSERT INTO albums(series,number,title,publisher,cover_checked_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) RETURNING id`).get('Nocéan','1','Atari & Tika','Dupuis').id;
