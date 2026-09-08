@@ -170,6 +170,14 @@ export function persistCoverDecision(db,id,selection={}){
   }
 
   const result=core.persistCoverDecision(db,id,selection);
+  if(result.album&&!result.updated&&result.album.cover_url&&['preserve-higher-confidence-cover','preserve-existing-cover'].includes(result.reason)){
+    db.prepare(`UPDATE albums
+      SET cover_checked_at=CURRENT_TIMESTAMP,
+          cover_decision='quality-best-available',
+          cover_status='verified'
+      WHERE id=?`).run(id);
+    result.album=core.getAlbum(db,id);
+  }
   if(result.album)result.album=updateCoverStatus(db,id,result.album);
   return result;
 }
