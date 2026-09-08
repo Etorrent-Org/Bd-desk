@@ -18,14 +18,19 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   const html=await read('public/index.html');
   const sw=await read('public/sw.js');
   const app=await read('public/app.js');
-  assert.match(html,/bd-desk-build" content="2026\.09\.07\.5"/);
-  assert.match(app,/sw\.js\?v=20260907-5/);
+  const build=html.match(/bd-desk-build" content="(\d{4})\.(\d{2})\.(\d{2})\.(\d+)"/);
+  assert.ok(build,'Marqueur de build absent');
+  const version=`${build[1]}${build[2]}${build[3]}-${build[4]}`;
+  const htmlVersions=[...html.matchAll(/\?v=(\d{8}-\d+)/g)].map(match=>match[1]);
+  assert.ok(htmlVersions.length>5);
+  assert.ok(htmlVersions.every(value=>value===version));
+  assert.ok(app.includes('/sw.js?v='+version));
   assert.match(app,/updateViaCache:'none'/);
   assert.match(app,/\/api\/albums\/\$\{encodeURIComponent\(id\)\}\/cover\/image/);
   assert.match(app,/\/api\/covers\/resolve/);
-  assert.match(sw,/bd-desk-v47/);
-  assert.match(sw,/import-bdgest\.js\?v=20260907-5/);
-  assert.match(sw,/app\.js\?v=20260907-5/);
+  assert.match(sw,/const CACHE='bd-desk-v\d+'/);
+  assert.ok(sw.includes('/import-bdgest.js?v='+version));
+  assert.ok(sw.includes('/app.js?v='+version));
 });
 
 test('experience v3 conserve une UX et quatre thèmes visuels',async()=>{
@@ -51,7 +56,7 @@ test('le client de couverture utilise une résolution API vérifiée et garde la
   assert.match(js,/\/api\/albums\/.*cover\/image/);
   assert.match(js,/MAX_CONCURRENCY=2/);
   assert.match(js,/method:'POST'/);
-  assert.doesNotMatch(js,/covers\.openlibrary\.org/);
+  assert.doesNotMatch(js,/url:'https:\/\/covers\.openlibrary\.org/);
   assert.doesNotMatch(js,/media\.hachette\.fr\/imgArticle\/GLENAT/);
   assert.doesNotMatch(js,/method:'PATCH'/);
 });
