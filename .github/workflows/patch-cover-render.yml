@@ -31,11 +31,11 @@ jobs:
           node --check src/app.js
           node --check public/cover-sources.js
           node --test tests/cover-render-pipeline.test.js
-      - name: Commit final patch
+      - name: Commit application patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/patch-cover-render.yml scripts/apply-cover-render-patch.cjs
-          git add src/app.js public/cover-sources.js .github/workflows/live-cover-recovery.yml tests/cover-render-pipeline.test.js
+          git restore .github/workflows/live-cover-recovery.yml
+          git add src/app.js public/cover-sources.js tests/cover-render-pipeline.test.js
           git commit -m "fix: guarantee renderable real covers"
           git push origin HEAD:main
