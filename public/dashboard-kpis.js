@@ -9,12 +9,6 @@
 
   function routeName(){return String(location.hash||'#home').replace(/^#/,'').split('?')[0]||'home'}
 
-  function navigate(target){
-    if(target.missing)sessionStorage.setItem(MISSING_FILTER_KEY,'1');
-    else if(target.route==='series')sessionStorage.removeItem(MISSING_FILTER_KEY);
-    location.hash=`#${target.route}`;
-  }
-
   function enhanceDashboardKpis(){
     document.querySelectorAll('#content .kpis > .kpi').forEach(card=>{
       if(card.dataset.dashboardKpiEnhanced==='1')return;
@@ -23,6 +17,7 @@
       if(!target)return;
       card.dataset.dashboardKpiEnhanced='1';
       card.dataset.dashboardKpi=target.route;
+      card.dataset.route=target.route;
       if(target.missing)card.dataset.dashboardMissing='1';
       card.classList.add('kpi-link');
       card.setAttribute('role','link');
@@ -33,11 +28,10 @@
       cue.setAttribute('aria-hidden','true');
       cue.textContent='→';
       card.append(cue);
-      card.addEventListener('click',()=>navigate(target));
       card.addEventListener('keydown',event=>{
         if(event.key!=='Enter'&&event.key!==' ')return;
         event.preventDefault();
-        navigate(target);
+        card.click();
       });
     });
   }
@@ -98,7 +92,9 @@
 
   document.addEventListener('click',event=>{
     const seriesRoute=event.target.closest?.('[data-route="series"]');
-    if(seriesRoute)sessionStorage.removeItem(MISSING_FILTER_KEY);
+    if(!seriesRoute)return;
+    if(seriesRoute.dataset.dashboardMissing==='1')sessionStorage.setItem(MISSING_FILTER_KEY,'1');
+    else sessionStorage.removeItem(MISSING_FILTER_KEY);
   },true);
 
   const content=document.querySelector('#content');
