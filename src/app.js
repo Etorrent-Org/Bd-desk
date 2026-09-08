@@ -24,7 +24,7 @@ function bearer(req){ const h=req.headers.authorization||''; return h.startsWith
 function hash(v){ return crypto.createHash('sha256').update(v).digest('hex'); }
 function randomKey(){ return `bdk_${crypto.randomBytes(24).toString('base64url')}`; }
 
-const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io','bdfugue.com','www.bdfugue.com']);
+const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io','bdfugue.com','www.bdfugue.com','bdi.dlpdomain.com','static.bdbase.fr']);
 const COVER_MAX_BYTES=10*1024*1024;
 function isTrustedCoverUrl(value){
   try{
@@ -248,9 +248,16 @@ export function createBdDeskApp(config, opts={}){
       m=p.match(/^\/api\/albums\/(\d+)\/cover\/image$/);
       if(m&&req.method==='GET'){
         const a=getAlbum(db,m[1]);
-        if(!a||!['machine','partner'].includes(a.cover_origin)||!isTrustedCoverUrl(a.cover_url))return json(res,404,{error:'Couverture machine introuvable'});
+        if(!a||!['machine','partner'].includes(a.cover_origin))return json(res,404,{error:'Couverture machine introuvable'});
+        if(!isTrustedCoverUrl(a.cover_url)){
+          db.prepare("UPDATE albums SET cover_url=NULL,cover_origin=NULL,cover_source=NULL,cover_confidence=NULL,cover_width=NULL,cover_height=NULL,cover_bytes=NULL,cover_checked_at=NULL,cover_decision='proxy-source-untrusted',cover_status='missing',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(a.id);
+          return json(res,404,{error:'Source de couverture non approuvée',recoverable:true});
+        }
         const cover=await fetchCover(coverFetcher,a.cover_url);
-        if(!cover)return json(res,502,{error:'Source de couverture indisponible'});
+        if(!cover){
+          db.prepare("UPDATE albums SET cover_url=NULL,cover_origin=NULL,cover_source=NULL,cover_confidence=NULL,cover_width=NULL,cover_height=NULL,cover_bytes=NULL,cover_checked_at=NULL,cover_decision='proxy-source-unavailable',cover_status='missing',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(a.id);
+          return json(res,502,{error:'Source de couverture indisponible',recoverable:true});
+        }
         res.writeHead(200,{'content-type':cover.contentType,'content-length':cover.buffer.length,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; img-src 'self'; frame-ancestors 'none'"});
         return res.end(cover.buffer);
       }

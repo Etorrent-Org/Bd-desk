@@ -8,7 +8,7 @@
   const canonical=value=>text(value).replace(/[^0-9X]/gi,'').toUpperCase();
   const dateFr=()=>new Date().toLocaleDateString('fr-FR');
   const hostId=host=>host?.dataset?.album||host?.dataset?.detailAlbum||null;
-  const trustedProxyUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')||host==='bdfugue.com'||host==='www.bdfugue.com'||host.endsWith('.bdfugue.com')}catch{return false}};
+  const trustedProxyUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='covers.openlibrary.org'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host==='inventaire.io'||host==='bdi.dlpdomain.com'||host==='static.bdbase.fr'||host.endsWith('.hachette-livre.fr')||host==='bdfugue.com'||host==='www.bdfugue.com'||host.endsWith('.bdfugue.com')}catch{return false}};
   const displayUrl=album=>{
     const src=album?.cover_url||album?.coverUrl;
     const id=album?.id||album?.albumId;
@@ -177,6 +177,11 @@
     });
   });
   mo.observe(document.documentElement,{childList:true,subtree:true});
+  document.addEventListener('error',event=>{
+    const image=event.target;
+    if(!(image instanceof HTMLImageElement)||!image.classList.contains('cover-image'))return;
+    void recoverImage(image);
+  },true);
   addEventListener('pageshow',()=>scan());
   document.addEventListener('DOMContentLoaded',()=>scan(),{once:true});
   scan();
