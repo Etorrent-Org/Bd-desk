@@ -1,0 +1,52 @@
+/* Dashboard KPI navigation: obvious enough to discover, restrained enough to stay dashboard-like. */
+.kpi.kpi-link{
+  cursor:pointer;
+  outline:none;
+  text-align:left;
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background-color .16s ease;
+}
+.kpi.kpi-link:hover{
+  transform:translateY(-2px);
+  border-color:color-mix(in srgb,var(--ui-accent) 28%,var(--ui-line))!important;
+  box-shadow:0 10px 24px rgba(15,23,42,.08)!important;
+}
+.kpi.kpi-link:focus-visible{
+  border-color:color-mix(in srgb,var(--ui-accent) 52%,var(--ui-line))!important;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--ui-accent) 14%,transparent),0 8px 22px rgba(15,23,42,.07)!important;
+}
+.kpi-link-cue{
+  position:absolute;
+  right:15px;
+  top:15px;
+  z-index:2;
+  color:var(--ui-muted);
+  font-size:16px;
+  line-height:1;
+  font-weight:400;
+  opacity:0;
+  transform:translateX(-4px);
+  transition:opacity .16s ease,transform .16s ease,color .16s ease;
+  pointer-events:none;
+}
+.kpi.kpi-link:hover .kpi-link-cue,
+.kpi.kpi-link:focus-visible .kpi-link-cue{
+  opacity:.8;
+  transform:translateX(0);
+  color:var(--ui-accent);
+}
+
+.series-card-missing{
+  border-color:color-mix(in srgb,var(--ui-danger) 24%,var(--ui-line))!important;
+}
+.missing-tomes{
+  margin-top:7px;
+  color:var(--ui-danger);
+  font-size:11px;
+  line-height:1.4;
+  font-weight:400;
+}
+.missing-view-actions{margin-left:auto}
+
+@media(max-width:720px){
+  .kpi-link-cue{opacity:.55;transform:none;top:13px;right:13px}
+}
