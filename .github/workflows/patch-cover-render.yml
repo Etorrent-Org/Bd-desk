@@ -2,9 +2,10 @@ name: Apply cover render pipeline patch
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - '.github/workflows/patch-cover-render.yml'
+      - .github/workflows/patch-cover-render.yml
 
 permissions:
   contents: write
@@ -13,75 +14,28 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Patch renderable-cover pipeline
+      - name: Validate patcher
+        run: node --check scripts/apply-cover-render-patch.cjs
+      - name: Apply patch
+        run: node scripts/apply-cover-render-patch.cjs
+      - name: Validate application
         run: |
-          node <<'NODE'
-          const fs=require('fs');
-
-          function replace(path,from,to){
-            const before=fs.readFileSync(path,'utf8');
-            if(!before.includes(from))throw new Error(`Pattern not found in ${path}: ${from.slice(0,120)}`);
-            fs.writeFileSync(path,before.replace(from,to));
-          }
-
-          replace('src/app.js',
-            "const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io','bdfugue.com','www.bdfugue.com']);",
-            "const COVER_HOSTS=new Set(['openapi.bnf.fr','covers.openlibrary.org','books.google.com','books.googleusercontent.com','images.hachette-livre.fr','inventaire.io','bdfugue.com','www.bdfugue.com','bdi.dlpdomain.com','static.bdbase.fr']);");
-
-          replace('src/app.js',
-`        const a=getAlbum(db,m[1]);
-        if(!a||!['machine','partner'].includes(a.cover_origin)||!isTrustedCoverUrl(a.cover_url))return json(res,404,{error:'Couverture machine introuvable'});
-        const cover=await fetchCover(coverFetcher,a.cover_url);
-        if(!cover)return json(res,502,{error:'Source de couverture indisponible'});`,
-`        const a=getAlbum(db,m[1]);
-        if(!a||!['machine','partner'].includes(a.cover_origin))return json(res,404,{error:'Couverture machine introuvable'});
-        if(!isTrustedCoverUrl(a.cover_url)){
-          db.prepare("UPDATE albums SET cover_url=NULL,cover_origin=NULL,cover_source=NULL,cover_confidence=NULL,cover_width=NULL,cover_height=NULL,cover_bytes=NULL,cover_checked_at=NULL,cover_decision='proxy-source-untrusted',cover_status='missing',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(a.id);
-          return json(res,404,{error:'Source de couverture non approuvée',recoverable:true});
-        }
-        const cover=await fetchCover(coverFetcher,a.cover_url);
-        if(!cover){
-          db.prepare("UPDATE albums SET cover_url=NULL,cover_origin=NULL,cover_source=NULL,cover_confidence=NULL,cover_width=NULL,cover_height=NULL,cover_bytes=NULL,cover_checked_at=NULL,cover_decision='proxy-source-unavailable',cover_status='missing',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(a.id);
-          return json(res,502,{error:'Source de couverture indisponible',recoverable:true});
-        }`);
-
-          replace('public/cover-sources.js',
-            "const trustedProxyUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')||host==='bdfugue.com'||host==='www.bdfugue.com'||host.endsWith('.bdfugue.com')}catch{return false}};",
-            "const trustedProxyUrl=src=>{try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='covers.openlibrary.org'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host==='inventaire.io'||host==='bdi.dlpdomain.com'||host==='static.bdbase.fr'||host.endsWith('.hachette-livre.fr')||host==='bdfugue.com'||host==='www.bdfugue.com'||host.endsWith('.bdfugue.com')}catch{return false}};");
-
-          replace('public/cover-sources.js',
-`  mo.observe(document.documentElement,{childList:true,subtree:true});
-  addEventListener('pageshow',()=>scan());`,
-`  mo.observe(document.documentElement,{childList:true,subtree:true});
-  document.addEventListener('error',event=>{
-    const image=event.target;
-    if(!(image instanceof HTMLImageElement)||!image.classList.contains('cover-image'))return;
-    void recoverImage(image);
-  },true);
-  addEventListener('pageshow',()=>scan());`);
-
-          const workflow='.github/workflows/live-cover-recovery.yml';
-          const wf=fs.readFileSync(workflow,'utf8');
-          const marker='      - name: Final cover audit\n';
-          if(!wf.includes(marker))throw new Error('Final cover audit marker missing');
-          const audit=`      - name: Verify every stored cover is renderable\n        run: |\n          curl -fsS --retry 5 --retry-delay 2 \"$PREVIEW_URL/api/albums?limit=500\" > /tmp/albums-render.json\n          node -e \"const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/albums-render.json','utf8'));const ids=(d.items||[]).filter(a=>['machine','partner'].includes(a.cover_origin)&&a.cover_url).map(a=>a.id);fs.writeFileSync('/tmp/render-ids.txt',ids.join('\\n'));console.log('RENDER_CHECK_COUNT='+ids.length);\"\n          : > /tmp/render-failures.txt\n          if [ -s /tmp/render-ids.txt ]; then\n            xargs -r -P6 -I{} sh -c 'code=$(curl -sS --retry 1 --max-time 20 -o /dev/null -w \"%{http_code}\" \"$0/api/albums/$1/cover/image\" || true); [ \"$code\" = 200 ] || echo \"$1\" >> /tmp/render-failures.txt' \"$PREVIEW_URL\" {} < /tmp/render-ids.txt\n          fi\n          FIRST=$(wc -l < /tmp/render-failures.txt | tr -d ' ')\n          echo \"RENDER_FAILURES_FIRST_PASS=$FIRST\"\n          if [ \"$FIRST\" -gt 0 ]; then\n            sort -u /tmp/render-failures.txt > /tmp/render-failures-unique.txt\n            xargs -r -P4 -I{} sh -c 'curl -fsS --retry 2 --request POST \"$0/api/albums/$1/cover/resolve\" >/dev/null || true' \"$PREVIEW_URL\" {} < /tmp/render-failures-unique.txt\n            sleep 12\n            : > /tmp/render-failures-final.txt\n            xargs -r -P4 -I{} sh -c 'code=$(curl -sS --retry 1 --max-time 20 -o /dev/null -w \"%{http_code}\" \"$0/api/albums/$1/cover/image\" || true); [ \"$code\" = 200 ] || echo \"$1\" >> /tmp/render-failures-final.txt' \"$PREVIEW_URL\" {} < /tmp/render-failures-unique.txt\n            FINAL=$(wc -l < /tmp/render-failures-final.txt | tr -d ' ')\n          else\n            FINAL=0\n          fi\n          echo \"RENDER_FAILURES_FINAL=$FINAL\"\n          test \"$FINAL\" -eq 0\n\n`;
-          fs.writeFileSync(workflow,wf.replace(marker,audit+marker));
-
-          fs.writeFileSync('tests/cover-render-pipeline.test.js',`import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport fs from 'node:fs';\nimport { openDatabase } from '../src/db.js';\nimport { createBdDeskApp } from '../src/app.js';\n\nfunction insertMachine(db,{url,source='media-participations'}){\n  return db.prepare(\"INSERT INTO albums(isbn,series,title,cover_url,cover_origin,cover_source,cover_width,cover_height,cover_checked_at,cover_status) VALUES(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,'verified') RETURNING id\").get('9782205208412','Murailles invisibles (Les)','Tome 2',url,'machine',source,900,1200).id;\n}\n\nasync function withServer(db,coverFetchImpl,fn){\n  const server=createBdDeskApp({dbPath:':memory:',seedCsvPath:null,licenseSecret:'secret',googleBooksApiKey:'',webhookSigningSecret:'hook',allowedOrigins:[],edition:'free'},{db,seed:false,coverFetchImpl});\n  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));\n  try{return await fn('http://127.0.0.1:'+server.address().port)}finally{await new Promise(resolve=>server.close(resolve))}\n}\n\nfor(const [source,url] of [['media-participations','https://bdi.dlpdomain.com/cover.jpg'],['bdbase','https://static.bdbase.fr/couvertures/cover.jpg']]){\n  test('le proxy sert les couvertures '+source,async()=>{\n    const db=openDatabase(':memory:');\n    const id=insertMachine(db,{url,source});\n    let fetched='';\n    await withServer(db,async value=>{fetched=String(value);return new Response(new Uint8Array([255,216,255,0]),{status:200,headers:{'content-type':'image/jpeg'}})},async base=>{\n      const response=await fetch(base+'/api/albums/'+id+'/cover/image');\n      assert.equal(response.status,200);\n      assert.equal(fetched,url);\n    });\n  });\n}\n\ntest('une URL de couverture morte est invalidée au lieu de rester comptée comme trouvée',async()=>{\n  const db=openDatabase(':memory:');\n  const id=insertMachine(db,{url:'https://bdi.dlpdomain.com/dead.jpg'});\n  await withServer(db,async()=>new Response('down',{status:503}),async base=>{\n    const response=await fetch(base+'/api/albums/'+id+'/cover/image');\n    assert.equal(response.status,502);\n  });\n  const album=db.prepare('SELECT cover_url,cover_checked_at,cover_decision,cover_status FROM albums WHERE id=?').get(id);\n  assert.equal(album.cover_url,null);\n  assert.equal(album.cover_checked_at,null);\n  assert.equal(album.cover_decision,'proxy-source-unavailable');\n  assert.equal(album.cover_status,'missing');\n});\n\ntest('le récupérateur navigateur intercepte réellement les erreurs image et connaît les CDN éditeur/BDbase',()=>{\n  const js=fs.readFileSync(new URL('../public/cover-sources.js',import.meta.url),'utf8');\n  assert.match(js,/document\\.addEventListener\\('error'/);\n  assert.match(js,/void recoverImage\\(image\\)/);\n  assert.match(js,/bdi\\.dlpdomain\\.com/);\n  assert.match(js,/static\\.bdbase\\.fr/);\n});\n`);
-
-          fs.rmSync('.github/workflows/patch-cover-render.yml');
-          NODE
-      - name: Commit patch
+          node --check src/app.js
+          node --check public/cover-sources.js
+          node --test tests/cover-render-pipeline.test.js
+      - name: Commit final patch
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/app.js public/cover-sources.js .github/workflows/live-cover-recovery.yml tests/cover-render-pipeline.test.js .github/workflows/patch-cover-render.yml
-          git commit -m 'fix: guarantee renderable real covers'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/patch-cover-render.yml scripts/apply-cover-render-patch.cjs
+          git add src/app.js public/cover-sources.js .github/workflows/live-cover-recovery.yml tests/cover-render-pipeline.test.js
+          git commit -m "fix: guarantee renderable real covers"
           git push origin HEAD:main
