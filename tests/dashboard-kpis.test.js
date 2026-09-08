@@ -32,7 +32,7 @@ test('missing KPI preserves the dedicated filtered series view',async()=>{
 test('dashboard KPI assets are loaded and cached with the fixed navigation bundle',async()=>{
   const [html,sw]=await Promise.all([read('public/index.html'),read('public/sw.js')]);
   assert.match(html,/dashboard-kpis\.css\?v=20260908-1/);
-  assert.match(html,/dashboard-kpis\.js\?v=20260908-2/);
+  assert.match(html,/dashboard-kpis\.js\?v=20260908-1/);
   assert.match(sw,/dashboard-kpis\.css\?v=20260908-1/);
-  assert.match(sw,/dashboard-kpis\.js\?v=20260908-2/);
+  assert.match(sw,/dashboard-kpis\.js\?v=20260908-1/);
 });
