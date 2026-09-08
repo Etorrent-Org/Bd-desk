@@ -25,7 +25,6 @@ function catalogIdentifier(value){
   const isbn=canonicalIsbn(value);
   if(isbn)return isbn;
   const raw=String(value||'').replace(/[^0-9X]/gi,'').toUpperCase();
-  // Some French comics use EAN-13 identifiers beginning with 377 rather than a book ISBN.
   return /^\d{13}$/.test(raw)?raw:null;
 }
 function h1(html){const match=String(html||'').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);return match?visibleText(match[1]):''}
@@ -129,16 +128,27 @@ function candidate(album,page,imageUrl,quality,{identifierMatch=false,score=0}={
   };
 }
 
+function exactPageCompatible(album,page){
+  if(!album)return true;
+  const pageTitle=h1(page.html), pageText=`${pageTitle} ${visibleText(page.html)}`;
+  const titleScore=album.title?similarity(album.title,pageTitle):1;
+  if(titleScore===null||titleScore>=.28)return true;
+  const seriesScore=album.series?similarity(album.series,pageText):0;
+  const number=String(album.number||'').replace(/[^0-9a-z]/gi,'');
+  const pageNormalized=` ${normalize(pageText)} `;
+  const numberMatch=!number||pageNormalized.includes(` ${number} `)||pageNormalized.includes(` tome ${number} `)||pageNormalized.includes(` volume ${number} `);
+  return Number(seriesScore||0)>=.6&&numberMatch;
+}
+
 async function exactIdentifierCandidate(album,fetchImpl,timeoutMs){
   const identifier=catalogIdentifier(album?.isbn);if(!identifier)return null;
   const search=await fetchHtml(fetchImpl,`${BASE}/recherche?sch=${encodeURIComponent(identifier)}`,timeoutMs);if(!search)return null;
   const links=searchLinks(search.html,{...album,title:album?.title||identifier});
   for(const link of links.length?links:[...searchLinks(search.html,{title:'',series:''})]){
     const page=await fetchHtml(fetchImpl,link.url,timeoutMs);if(!page||!pageContainsIdentifier(page.html,identifier))continue;
+    if(!exactPageCompatible(album,page))continue;
     const pageTitle=h1(page.html);
     const titleScore=album?.title?similarity(album.title,pageTitle):1;
-    // An identifier reused by a coffret must not force its box cover onto unrelated component titles.
-    if(album?.title&&titleScore!==null&&titleScore<.28)continue;
     const imageUrl=coverForIdentifier(page.html,identifier)||primaryCover(page.html);if(!imageUrl)continue;
     const quality=await inspectImage(fetchImpl,imageUrl,timeoutMs);if(!quality)continue;
     return candidate(album,page,imageUrl,quality,{identifierMatch:true,score:titleScore||0});
