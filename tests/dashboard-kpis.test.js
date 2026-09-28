@@ -31,8 +31,11 @@ test('missing KPI preserves the dedicated filtered series view',async()=>{
 
 test('dashboard KPI assets are loaded and cached with the fixed navigation bundle',async()=>{
   const [html,sw]=await Promise.all([read('public/index.html'),read('public/sw.js')]);
-  assert.match(html,/dashboard-kpis\.css\?v=20260908-1/);
-  assert.match(html,/dashboard-kpis\.js\?v=20260908-1/);
-  assert.match(sw,/dashboard-kpis\.css\?v=20260908-1/);
-  assert.match(sw,/dashboard-kpis\.js\?v=20260908-1/);
+  const build=html.match(/bd-desk-build" content="(\d{4})\.(\d{2})\.(\d{2})\.(\d+)"/);
+  assert.ok(build,'Marqueur de build absent');
+  const version=`${build[1]}${build[2]}${build[3]}-${build[4]}`;
+  assert.ok(html.includes('/dashboard-kpis.css?v='+version));
+  assert.ok(html.includes('/dashboard-kpis.js?v='+version));
+  assert.ok(sw.includes('/dashboard-kpis.css?v='+version));
+  assert.ok(sw.includes('/dashboard-kpis.js?v='+version));
 });
