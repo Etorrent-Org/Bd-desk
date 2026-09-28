@@ -1,3 +1,5 @@
+import { coverSrc, coverCard, escapeHtml, euro, header, img } from './app-ui.js?v=20260928-1';
+
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const state={route:'home',theme:localStorage.getItem('bd-theme')||'neutral',edition:'free',license:{plan:'free',features:[]},search:'',albums:[],collection:{page:0,read:''}};
 const routes=[['home','⌂','Accueil'],['collection','▥','Ma collection'],['series','▦','Séries'],['albums','▤','Albums'],['authors','♙','Auteurs'],['publishers','♜','Éditeurs'],['wishlist','♡','Wishlist'],['loans','♧','Prêts'],['history','◷','Historique'],['stats','▥','Statistiques'],['discover','◎','Découvrir']];
@@ -13,13 +15,6 @@ function nav(){
 }
 function routeFromHash(hash=location.hash){const candidate=String(hash||'#home').replace(/^#/,'').split('?')[0]||'home';return routeNames.has(candidate)?candidate:'home'}
 function go(r){const next=routeNames.has(r)?r:'home';if(next!==state.route&&(next==='collection'||next==='albums'||next==='wishlist'))state.collection.page=0;state.route=next;history.replaceState(null,'',`#${next}`);$('.sidebar').classList.remove('open');nav();void render()}
-function escapeHtml(s=''){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function trustedCoverUrl(src){try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='covers.openlibrary.org'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')}catch{return false}}
-function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin!=='user'&&a.coverOrigin!=='user'&&(a.cover_origin==='machine'||a.coverOrigin==='machine'||trustedCoverUrl(src));return src&&machine&&id?`/api/albums/${encodeURIComponent(id)}/cover/image`:src}
-function img(a,cls=''){const src=coverSrc(a);return src?`<img class="cover-image ${cls}" src="${escapeHtml(src)}" loading="lazy" alt="Couverture ${escapeHtml(a.title||a.series||'album')}">`:`<div class="placeholder">${escapeHtml(a.series||a.title||'BD')}</div>`}
-function coverCard(a){return `<article class="album-card" data-album="${a.id}"><div class="cover-wrap">${img(a)}</div><h3>${escapeHtml(a.series||a.title)}</h3><p class="series">${escapeHtml(a.number?`Tome ${a.number}`:a.title)}</p><p>${escapeHtml(a.title===a.series?'':a.title||'')}</p></article>`}
-function header(title,sub='',action=''){return `<div class="page-head"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${action}</div>`}
-function euro(v){return Number(v||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}
 function premium(feature){return state.license.plan==='premium'&&(!feature||state.license.features.includes(feature))}
 
 async function home(){
@@ -178,4 +173,4 @@ function openWebhook(){modal(`<h2>Ajouter un webhook</h2><form id="webhookForm">
 function setTheme(t){state.theme=t;localStorage.setItem('bd-theme',t);document.body.dataset.theme=t;render()}
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-route],#themeBtn,#menuBtn');if(!button)return;if(button.id==='menuBtn'){e.preventDefault();$('.sidebar').classList.toggle('open');return}if(button.id==='themeBtn'){e.preventDefault();go('settings');return}if(button.dataset.route==='add'){openAdd();return}e.preventDefault();go(button.dataset.route)});
 $('#fab').onclick=openAdd;$('#globalSearch').onkeydown=e=>{if(e.key==='Enter'){state.search=e.target.value;go('collection')}};document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement?.tagName!=='INPUT'){e.preventDefault();$('#globalSearch').focus()}});window.addEventListener('hashchange',()=>{state.route=routeFromHash();nav();void render()});
-(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260908-1',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
+(async()=>{document.body.dataset.theme=state.theme;state.route=routeFromHash();const [license,capabilities]=await Promise.all([api('/api/license').catch(()=>({plan:'free',features:[],edition:'free'})),api('/api/capabilities').catch(()=>({edition:'free'}))]);state.edition=capabilities.edition||license.edition||'free';state.license={plan:license.plan||'free',features:Array.isArray(license.features)?license.features:[]};$('#planBadge').textContent=premium()?'Premium':'Gratuit';nav();void render();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js?v=20260928-1',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{})})();
