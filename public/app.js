@@ -1,3 +1,5 @@
+import { coverSrc, coverCard, escapeHtml, euro, header, img } from './app-ui.js';
+
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const state={route:'home',theme:localStorage.getItem('bd-theme')||'neutral',edition:'free',license:{plan:'free',features:[]},search:'',albums:[],collection:{page:0,read:''}};
 const routes=[['home','⌂','Accueil'],['collection','▥','Ma collection'],['series','▦','Séries'],['albums','▤','Albums'],['authors','♙','Auteurs'],['publishers','♜','Éditeurs'],['wishlist','♡','Wishlist'],['loans','♧','Prêts'],['history','◷','Historique'],['stats','▥','Statistiques'],['discover','◎','Découvrir']];
@@ -13,13 +15,6 @@ function nav(){
 }
 function routeFromHash(hash=location.hash){const candidate=String(hash||'#home').replace(/^#/,'').split('?')[0]||'home';return routeNames.has(candidate)?candidate:'home'}
 function go(r){const next=routeNames.has(r)?r:'home';if(next!==state.route&&(next==='collection'||next==='albums'||next==='wishlist'))state.collection.page=0;state.route=next;history.replaceState(null,'',`#${next}`);$('.sidebar').classList.remove('open');nav();void render()}
-function escapeHtml(s=''){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function trustedCoverUrl(src){try{const host=new URL(src,location.origin).hostname;return host==='openapi.bnf.fr'||host==='covers.openlibrary.org'||host==='books.google.com'||host==='books.googleusercontent.com'||host==='images.hachette-livre.fr'||host.endsWith('.hachette-livre.fr')}catch{return false}}
-function coverSrc(a){const src=a.cover_url||a.coverUrl;const id=a.id||a.albumId;const machine=a.cover_origin!=='user'&&a.coverOrigin!=='user'&&(a.cover_origin==='machine'||a.coverOrigin==='machine'||trustedCoverUrl(src));return src&&machine&&id?`/api/albums/${encodeURIComponent(id)}/cover/image`:src}
-function img(a,cls=''){const src=coverSrc(a);return src?`<img class="cover-image ${cls}" src="${escapeHtml(src)}" loading="lazy" alt="Couverture ${escapeHtml(a.title||a.series||'album')}">`:`<div class="placeholder">${escapeHtml(a.series||a.title||'BD')}</div>`}
-function coverCard(a){return `<article class="album-card" data-album="${a.id}"><div class="cover-wrap">${img(a)}</div><h3>${escapeHtml(a.series||a.title)}</h3><p class="series">${escapeHtml(a.number?`Tome ${a.number}`:a.title)}</p><p>${escapeHtml(a.title===a.series?'':a.title||'')}</p></article>`}
-function header(title,sub='',action=''){return `<div class="page-head"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${action}</div>`}
-function euro(v){return Number(v||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}
 function premium(feature){return state.license.plan==='premium'&&(!feature||state.license.features.includes(feature))}
 
 async function home(){
