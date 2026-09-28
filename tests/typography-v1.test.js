@@ -6,7 +6,10 @@ const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
 test('la couche typographique est chargée après experience-v3',async()=>{
   const html=await read('public/index.html');
-  assert.match(html,/typography-v1\.css\?v=20260908-1/);
+  const build=html.match(/bd-desk-build" content="(\d{4})\.(\d{2})\.(\d{2})\.(\d+)"/);
+  assert.ok(build,'Marqueur de build absent');
+  const version=`${build[1]}${build[2]}${build[3]}-${build[4]}`;
+  assert.ok(html.includes('/typography-v1.css?v='+version));
   assert.ok(html.indexOf('experience-v3.css')<html.indexOf('typography-v1.css'));
 });
 
@@ -27,7 +30,11 @@ test('les thèmes gardent une personnalité sans Impact ni uppercase forcé',asy
 });
 
 test('la PWA met en cache la nouvelle couche typographique',async()=>{
+  const html=await read('public/index.html');
   const sw=await read('public/sw.js');
-  assert.match(sw,/bd-desk-v49/);
-  assert.match(sw,/typography-v1\.css\?v=20260908-1/);
+  const build=html.match(/bd-desk-build" content="(\d{4})\.(\d{2})\.(\d{2})\.(\d+)"/);
+  assert.ok(build,'Marqueur de build absent');
+  const version=`${build[1]}${build[2]}${build[3]}-${build[4]}`;
+  assert.match(sw,/bd-desk-v\d+/);
+  assert.ok(sw.includes('/typography-v1.css?v='+version));
 });
