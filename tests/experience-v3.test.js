@@ -18,6 +18,7 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   const html=await read('public/index.html');
   const sw=await read('public/sw.js');
   const app=await read('public/app.js');
+  const appUi=await read('public/app-ui.js');
   const build=html.match(/bd-desk-build" content="(\d{4})\.(\d{2})\.(\d{2})\.(\d+)"/);
   assert.ok(build,'Marqueur de build absent');
   const version=`${build[1]}${build[2]}${build[3]}-${build[4]}`;
@@ -26,10 +27,11 @@ test('la PWA invalide explicitement le bundle pour ne pas conserver une ancienne
   assert.ok(htmlVersions.every(value=>value===version));
   assert.ok(app.includes('/sw.js?v='+version));
   assert.match(app,/updateViaCache:'none'/);
-  assert.match(app,/\/api\/albums\/\$\{encodeURIComponent\(id\)\}\/cover\/image/);
+  assert.match(appUi,/\/api\/albums\/\$\{encodeURIComponent\(id\)\}\/cover\/image/);
   assert.match(app,/\/api\/covers\/resolve/);
   assert.match(sw,/const CACHE='bd-desk-v\d+'/);
   assert.ok(sw.includes('/import-bdgest.js?v='+version));
+  assert.ok(sw.includes('/app-ui.js?v='+version));
   assert.ok(sw.includes('/app.js?v='+version));
 });
 
